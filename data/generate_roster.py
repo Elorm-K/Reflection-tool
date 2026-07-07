@@ -91,7 +91,7 @@ def generate(n: int, seed: int) -> dict:
     rng = random.Random(seed)
     students = []
     for i in range(1, n + 1):
-        name = f"{FIRST_NAMES[(i - 1) % len(FIRST_NAMES)]} {LAST_INITIALS[(i - 1) // len(FIRST_NAMES) % len(LAST_INITIALS)]}."
+        name = f"{FIRST_NAMES[(i - 1) % len(FIRST_NAMES)]} {LAST_INITIALS[(i * 7) % len(LAST_INITIALS)]}."
         students.append(
             {
                 "id": f"s{i:03d}",
