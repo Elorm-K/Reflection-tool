@@ -1,0 +1,28 @@
+{
+	"name": "Python Development",
+	"image": "ghcr.io/metinsenturk/devcontainer-templates/simple-python:latest",
+	"workspaceFolder": "/workspace",
+	"workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
+	"remoteUser": "vscode",
+	
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-python.python",
+				"ms-python.isort",
+				"ms-python.autopep8",
+				"ms-python.mypy-type-checker"
+			]
+		}
+	},
+	"features": {
+		"ghcr.io/devcontainers/features/node:1": {
+			"version": "22"
+		},
+		"ghcr.io/devcontainer-config/features/dot-config:4": {}
+	},
+	"overrideFeatureInstallOrder": [
+		"ghcr.io/devcontainers/features/node",
+		"ghcr.io/devcontainer-config/features/dot-config"
+	]
+}
