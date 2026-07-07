@@ -1,0 +1,16 @@
+{
+  "config": {
+    "target_size": 5, "min_size": 3, "max_size": 5, "min_overlap": 2,
+    "priority": ["availability", "gender", "disability"], "tiebreak_seed": 0,
+    "grid": {"days": 1, "start": "08:00", "end": "10:00", "slot_minutes": 30}
+  },
+  "_note": "The 6-student worked example from spec section 4.1. The 4 slots stand in for four candidate evening slots (Mon-Thu 18:00) on a reduced grid for readability.",
+  "students": [
+    {"id": "s01", "name": "Ada P.", "availability": [1, 1, 0, 0], "gender": "woman", "disability": "adhd"},
+    {"id": "s02", "name": "Bela K.", "availability": [1, 1, 1, 0], "gender": "woman", "disability": "mental_health"},
+    {"id": "s03", "name": "Cami R.", "availability": [1, 1, 0, 1], "gender": "non_binary", "disability": "none"},
+    {"id": "s04", "name": "Dara T.", "availability": [0, 0, 1, 1], "gender": "man", "disability": "none"},
+    {"id": "s05", "name": "Emre S.", "availability": [0, 0, 1, 1], "gender": "man", "disability": "autism"},
+    {"id": "s06", "name": "Fen W.", "availability": [0, 1, 1, 1], "gender": "man", "disability": "prefer_not_to_disclose"}
+  ]
+}
