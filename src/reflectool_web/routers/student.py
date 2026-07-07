@@ -5,7 +5,9 @@ import sqlite3
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from .. import repo
+from reflectool.io_parse import ValidationError, parse_config, parse_roster
+
+from .. import repo, sessions
 from ..auth import get_db, require_student
 from ..privacy import student_safe
 
@@ -15,6 +17,31 @@ router = APIRouter(prefix="/api")
 class JoinBody(BaseModel):
     class_code: str = Field(min_length=1)
     student_id: str = Field(min_length=1)
+
+
+class AvailabilityBody(BaseModel):
+    slots: list[bool | int]
+
+
+class SurveyBody(BaseModel):
+    gender: str | None = None
+    disability: str | None = None
+    skip: bool = False
+
+
+def _current_cycle(db: sqlite3.Connection, ctx: dict) -> dict:
+    cycle = repo.current_cycle_for_class(db, ctx["class_id"])
+    if cycle is None:
+        raise HTTPException(status_code=404, detail="no active cycle for this class")
+    return cycle
+
+
+def _require_collecting(cycle: dict) -> None:
+    if cycle["status"] != "collecting":
+        raise HTTPException(
+            status_code=409,
+            detail="submissions are closed for this cycle",
+        )
 
 
 @router.post("/join")
@@ -53,6 +80,7 @@ def me(ctx: dict = Depends(require_student), db: sqlite3.Connection = Depends(ge
                 "label": cycle["label"],
                 "deadline": cycle["deadline"],
                 "phase": cycle["status"],
+                "grid": sessions.grid_out(cycle["config"]),
             },
             "availability_submitted": bool(submission and submission["availability"]),
             "survey_submitted": bool(
@@ -65,3 +93,44 @@ def me(ctx: dict = Depends(require_student), db: sqlite3.Connection = Depends(ge
             ),
         }
     )
+
+
+@router.put("/me/availability")
+def submit_availability(
+    body: AvailabilityBody,
+    ctx: dict = Depends(require_student),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    cycle = _current_cycle(db, ctx)
+    _require_collecting(cycle)
+    config = parse_config(cycle["config"])
+    try:
+        parse_roster(
+            [{"id": ctx["student_ext_id"], "availability": list(body.slots)}], config
+        )
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    repo.upsert_availability(db, cycle["id"], ctx["enrollment_id"], list(body.slots))
+    repo.add_audit(db, cycle["id"], actor=ctx["student_ext_id"],
+                   action="availability-submitted")
+    return student_safe({"ok": True, "slots_selected": sum(bool(v) for v in body.slots)})
+
+
+@router.put("/me/survey")
+def submit_survey(
+    body: SurveyBody,
+    ctx: dict = Depends(require_student),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    cycle = _current_cycle(db, ctx)
+    _require_collecting(cycle)
+    if body.skip:
+        repo.upsert_survey(db, cycle["id"], ctx["enrollment_id"], skipped=True)
+    else:
+        repo.upsert_survey(
+            db, cycle["id"], ctx["enrollment_id"],
+            gender=body.gender, disability=body.disability,
+        )
+    repo.add_audit(db, cycle["id"], actor=ctx["student_ext_id"], action="survey-submitted")
+    # Survey values are stored, never echoed back — not even to the submitter.
+    return student_safe({"ok": True})

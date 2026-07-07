@@ -5,7 +5,7 @@ import os
 from fastapi import FastAPI
 
 from .db import connect
-from .routers import instructor, student
+from .routers import cycles, instructor, student
 
 
 def create_app(db_path: str | None = None) -> FastAPI:
@@ -18,4 +18,5 @@ def create_app(db_path: str | None = None) -> FastAPI:
 
     app.include_router(instructor.router)
     app.include_router(student.router)
+    app.include_router(cycles.router)
     return app
