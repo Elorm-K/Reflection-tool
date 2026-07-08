@@ -1,10 +1,13 @@
 """Instructor cycle routes: create/list cycles, config, roster-status."""
 
+import csv
+import io
 import sqlite3
 import statistics
 from collections import Counter
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
 from typing import Literal
@@ -18,6 +21,8 @@ from reflectool.io_parse import (
 )
 from reflectool.matcher import match as run_match
 from reflectool.notify import all_notifications
+from reflectool.objective import group_overlap_slots
+from reflectool.output_format import assert_no_demographics
 from reflectool.output_format import build_proposal
 from reflectool.review_workflow import (
     IllegalTransition,
@@ -302,6 +307,99 @@ def notifications_preview(
         return all_notifications(session)
     except Exception as exc:  # PreApprovalLeak before publish
         raise HTTPException(status_code=409, detail=str(exc))
+
+
+@router.get("/cycles/{cycle_id}/groups/{group_id}/messages")
+def group_messages(
+    group_id: int,
+    since: int = 0,
+    cycle: dict = Depends(require_owned_cycle),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    """Instructor read access to a group's chat (disclosed to students in the
+    chat UI)."""
+    messages = [
+        {"id": m["id"], "sender_id": m["sender_id"], "sender_name": m["sender_name"],
+         "body": m["body"], "created_at": m["created_at"]}
+        for m in repo.list_messages(db, cycle["id"], group_id, since=since)
+    ]
+    return {"messages": messages}
+
+
+@router.get("/cycles/{cycle_id}/export.csv")
+def export_csv(cycle: dict = Depends(require_owned_cycle)):
+    """Groups as CSV, built from the proposal only — demographic-free by
+    construction, and asserted anyway."""
+    session, _ = _session_or_404(cycle)
+    rows = []
+    names = {s.student_id: s.name for s in session.roster}
+    for group in session.proposal["groups"]:
+        for sid in group["members"]:
+            rows.append({
+                "group_id": group["group_id"],
+                "student_id": sid,
+                "name": names.get(sid, ""),
+                "meeting_slots": " ".join(group["meeting_slots"]),
+            })
+    assert_no_demographics(rows)
+    buf = io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=["group_id", "student_id", "name",
+                                             "meeting_slots"])
+    writer.writeheader()
+    writer.writerows(rows)
+    return PlainTextResponse(buf.getvalue(), media_type="text/csv")
+
+
+@router.get("/cycles/{cycle_id}/explain/{student_id}")
+def explain(student_id: str, cycle: dict = Depends(require_owned_cycle)):
+    """Privacy-safe placement facts: schedule and config only."""
+    session, _ = _session_or_404(cycle)
+    try:
+        session.student(student_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"unknown student: {student_id}")
+    for g in session.proposal["groups"]:
+        if student_id in g["members"]:
+            members = [session.student(sid) for sid in g["members"]]
+            return {
+                "student_id": student_id,
+                "group_id": g["group_id"],
+                "group_size": len(members),
+                "shared_slot_count": len(group_overlap_slots(members)),
+                "meeting_slots": g["meeting_slots"],
+                "min_overlap_required": session.config.min_overlap,
+                "status": session.proposal["status"],
+            }
+    reason = next(
+        (u["reason"] for u in session.proposal["unplaced"]
+         if u["student_id"] == student_id),
+        None,
+    )
+    return {"student_id": student_id, "unplaced": True, "reason": reason}
+
+
+@router.get("/cycles/{cycle_id}/audit")
+def audit_trail(
+    cycle: dict = Depends(require_owned_cycle), db: sqlite3.Connection = Depends(get_db)
+):
+    return {"entries": repo.list_audit(db, cycle["id"])}
+
+
+class ResetClaimBody(BaseModel):
+    student_id: str
+
+
+@router.post("/classes/{class_id}/reset-claim")
+def reset_claim(
+    body: ResetClaimBody,
+    cls: dict = Depends(require_owned_class),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    """Clear a student's enrollment (and their tokens/submissions/messages) so
+    the right person can re-claim the seat."""
+    if not repo.reset_claim(db, cls["id"], body.student_id):
+        raise HTTPException(status_code=404, detail="no claim to reset for that student")
+    return {"ok": True}
 
 
 @router.get("/cycles/{cycle_id}/roster-status")

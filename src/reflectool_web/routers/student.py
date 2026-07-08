@@ -30,6 +30,10 @@ class SurveyBody(BaseModel):
     skip: bool = False
 
 
+class MessageBody(BaseModel):
+    body: str = Field(min_length=1, max_length=2000)
+
+
 def _current_cycle(db: sqlite3.Connection, ctx: dict) -> dict:
     cycle = repo.current_cycle_for_class(db, ctx["class_id"])
     if cycle is None:
@@ -154,3 +158,52 @@ def my_group(
     except KeyError:
         raise HTTPException(status_code=404, detail="you are not part of this cycle")
     return student_safe(view)
+
+
+def _published_group_id(db: sqlite3.Connection, ctx: dict) -> tuple[dict, int]:
+    """The student's group id in the published proposal, or 409/404."""
+    cycle = _current_cycle(db, ctx)
+    if not cycle["session_json"] or cycle["status"] != "published":
+        raise HTTPException(status_code=409, detail="your group is not published yet")
+    session, _ = sessions.load_session(cycle)
+    for group in session.proposal["groups"]:
+        if ctx["student_ext_id"] in group["members"]:
+            return cycle, group["group_id"]
+    raise HTTPException(status_code=404, detail="you are not in a group this cycle")
+
+
+def _message_out(m: dict) -> dict:
+    return {
+        "id": m["id"],
+        "sender_id": m["sender_id"],
+        "sender_name": m["sender_name"],
+        "body": m["body"],
+        "created_at": m["created_at"],
+    }
+
+
+@router.get("/me/group/messages")
+def list_group_messages(
+    since: int = 0,
+    ctx: dict = Depends(require_student),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    cycle, group_id = _published_group_id(db, ctx)
+    messages = [_message_out(m) for m in
+                repo.list_messages(db, cycle["id"], group_id, since=since)]
+    return student_safe({"messages": messages})
+
+
+@router.post("/me/group/messages", status_code=201)
+def post_group_message(
+    body: MessageBody,
+    ctx: dict = Depends(require_student),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    cycle, group_id = _published_group_id(db, ctx)
+    message = repo.add_message(db, cycle["id"], group_id, ctx["enrollment_id"],
+                               body.body)
+    return student_safe(
+        _message_out({**message, "sender_id": ctx["student_ext_id"],
+                      "sender_name": ctx["name"]})
+    )
