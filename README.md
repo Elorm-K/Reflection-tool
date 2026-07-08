@@ -42,6 +42,12 @@ cd web && npm install && npm run dev                   # frontend on :5173 (prox
 docker build -t groupmatcher . && docker run -p 8000:8000 -v gm-data:/data groupmatcher
 ```
 
+Deploying to a PaaS (Railway, etc.): the server binds the platform-injected `PORT`
+automatically (`REFLECTOOL_PORT` overrides it). SQLite lives at `REFLECTOOL_DB`
+(default `/data/reflectool.db` in the container) — attach a persistent volume at
+`/data` or every redeploy wipes classes, submissions, and groupings. The startup
+log prints the resolved DB path so you can confirm it landed on the volume.
+
 Students join with a class code + student ID, paint availability, and answer an optional
 demographic survey. The instructor collects submissions, runs the matcher, reviews on a
 drag-and-drop board (the only surface showing per-student demographics), approves — the
