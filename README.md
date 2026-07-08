@@ -11,6 +11,9 @@ The agent is a set of **Claude Skills** in front of a **deterministic, stdlib-on
 | `CLAUDE.md` | Agent constitution: privacy invariants, approval gate, role rules |
 | `.claude/skills/` | Five skills: `intake-roster`, `match-groups`, `review-groups`, `publish-groups`, `explain-match` |
 | `src/reflectool/` | Matcher core, review state machine, notifications, CLI |
+| `src/reflectool_web/` | FastAPI pilot backend: class codes, student submissions, review board, chat |
+| `web/` | React/Vite frontend ("GroupMatcher"): student mobile flow + instructor portal |
+| `Dockerfile` | Single-container pilot deployment (API + built SPA, SQLite on `/data`) |
 | `data/` | Roster generator (any class size) + fixtures: demo (6), test (38), scale (120), edge cases |
 | `docs/workflow.md` | End-to-end lifecycle and which skill fires where |
 | `docs/skills-plan.md` | Skill design rationale + adversarial test evidence |
@@ -28,6 +31,22 @@ PYTHONPATH=src .venv/bin/python -m reflectool.cli composition --state state/sess
 ```
 
 Lifecycle: `match` → (`composition`, `edit`) → `approve` → `publish` → `student-view`.
+
+### Web pilot
+
+```bash
+.venv/bin/pip install -e ".[web,dev]"
+PYTHONPATH=src .venv/bin/python -m reflectool_web      # API on :8000
+cd web && npm install && npm run dev                   # frontend on :5173 (proxies /api)
+# or one container:
+docker build -t groupmatcher . && docker run -p 8000:8000 -v gm-data:/data groupmatcher
+```
+
+Students join with a class code + student ID, paint availability, and answer an optional
+demographic survey. The instructor collects submissions, runs the matcher, reviews on a
+drag-and-drop board (the only surface showing per-student demographics), approves — the
+server refuses approval until the current proposal revision has actually been viewed — and
+publishes, at which point students see their group and a small group chat opens.
 
 ## Guarantees
 
