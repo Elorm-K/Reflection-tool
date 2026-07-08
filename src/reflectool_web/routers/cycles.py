@@ -7,7 +7,10 @@ from collections import Counter
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from reflectool.io_parse import ValidationError, parse_config
+from reflectool.io_parse import ValidationError, parse_config, parse_roster
+from reflectool.matcher import match as run_match
+from reflectool.output_format import build_proposal
+from reflectool.review_workflow import Session
 
 from .. import repo, sessions
 from ..auth import get_db, require_instructor, require_owned_class
@@ -103,6 +106,47 @@ def patch_config(
     repo.update_cycle(db, cycle["id"], config=config)
     repo.add_audit(db, cycle["id"], actor="instructor", action="config-updated")
     return cycle_out(repo.get_cycle(db, cycle["id"]))
+
+
+@router.post("/cycles/{cycle_id}/match")
+def match_cycle(
+    cycle: dict = Depends(require_owned_cycle), db: sqlite3.Connection = Depends(get_db)
+):
+    """Run the deterministic matcher over stored submissions.
+
+    Allowed while collecting (first match) or proposed (re-match / RESET);
+    blocked once approved — the instructor must start a new cycle instead.
+    """
+    if cycle["status"] not in ("collecting", "proposed"):
+        raise HTTPException(
+            status_code=409,
+            detail=f"cannot re-match a cycle in status '{cycle['status']}'",
+        )
+    raw_students = sessions.assemble_raw_students(db, cycle["id"])
+    if not raw_students:
+        raise HTTPException(status_code=409, detail="no availability submissions yet")
+    config = parse_config(cycle["config"])
+    students = parse_roster(raw_students, config)
+    proposal = build_proposal(run_match(students, config), config)
+    session = Session(
+        roster=students, config=config, proposal=proposal,
+        audit_log=["match: proposal generated"],
+    )
+    sessions.save_session(db, cycle["id"], session, raw_students)
+    repo.update_cycle(db, cycle["id"], proposal_rev=cycle["proposal_rev"] + 1)
+    repo.add_audit(
+        db, cycle["id"], actor="instructor", action="match",
+        detail=f"groups={len(proposal['groups'])} unplaced={len(proposal['unplaced'])}",
+    )
+    return proposal
+
+
+@router.get("/cycles/{cycle_id}/proposal")
+def get_proposal(cycle: dict = Depends(require_owned_cycle)):
+    if not cycle["session_json"]:
+        raise HTTPException(status_code=404, detail="no proposal yet — run match first")
+    session, _ = sessions.load_session(cycle)
+    return session.proposal
 
 
 @router.get("/cycles/{cycle_id}/roster-status")
