@@ -1,0 +1,79 @@
+.gridWrap {
+  border: var(--border);
+  overflow: auto;
+}
+
+.grid {
+  display: grid;
+  /* column/row template set inline from grid config */
+  touch-action: none; /* paint gesture owns touch inside the grid */
+  user-select: none;
+}
+
+.dayHeader {
+  position: sticky;
+  top: 0;
+  background: var(--paper);
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: var(--space-2) 0;
+  border-bottom: var(--border-thin);
+  z-index: 2;
+}
+.dayHeaderWeekend {
+  composes: dayHeader;
+  color: var(--alert);
+}
+
+.timeLabel {
+  position: sticky;
+  left: 0;
+  background: var(--panel);
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: var(--space-1);
+  border-right: var(--border-thin);
+  z-index: 1;
+}
+
+.cell {
+  border: none;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: var(--paper);
+  min-height: 28px;
+  padding: 0;
+}
+.cellOn {
+  composes: cell;
+  background: var(--ink);
+}
+.cell:focus-visible {
+  outline: 2px solid var(--alert);
+  outline-offset: -2px;
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.8125rem;
+}
+.swatchOn {
+  width: 14px;
+  height: 14px;
+  background: var(--ink);
+  display: inline-block;
+}
+.swatchOff {
+  width: 14px;
+  height: 14px;
+  border: var(--border-thin);
+  display: inline-block;
+}

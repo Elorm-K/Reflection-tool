@@ -1,0 +1,29 @@
+/* GroupMatcher brutalist tokens — derived from the Figma frames
+   (monochrome, chunky 2px ink borders, hard offset shadows, one alert red). */
+:root {
+  --ink: #000000;
+  --paper: #ffffff;
+  --panel: #f5f5f5;
+  --muted: #757575;
+  --line: #e0e0e0;
+  --alert: #d32f2f;
+  --alert-bg: #fdecea;
+
+  --border: 2px solid var(--ink);
+  --border-thin: 1px solid var(--ink);
+  --shadow: 4px 4px 0 var(--ink);
+  --shadow-sm: 2px 2px 0 var(--ink);
+
+  --font-body: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-mono: 'SF Mono', ui-monospace, 'Courier New', monospace;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  --radius: 0px; /* brutalism: no rounding */
+}
