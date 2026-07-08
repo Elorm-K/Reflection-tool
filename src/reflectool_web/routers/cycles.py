@@ -7,10 +7,24 @@ from collections import Counter
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from reflectool.io_parse import ValidationError, parse_config, parse_roster
+from typing import Literal
+
+from reflectool.io_parse import (
+    ValidationError,
+    normalize_disability,
+    normalize_gender,
+    parse_config,
+    parse_roster,
+)
 from reflectool.matcher import match as run_match
 from reflectool.output_format import build_proposal
-from reflectool.review_workflow import Session
+from reflectool.review_workflow import (
+    IllegalTransition,
+    InvalidEdit,
+    Session,
+    apply_edit,
+    composition_view,
+)
 
 from .. import repo, sessions
 from ..auth import get_db, require_instructor, require_owned_class
@@ -22,6 +36,23 @@ class CycleBody(BaseModel):
     label: str = ""
     deadline: str | None = None
     config: dict = {}
+
+
+class EditBody(BaseModel):
+    action: Literal["move", "assign"]
+    student_id: str
+    to_group: int
+    allow_oversize: bool = False
+
+
+def _session_or_404(cycle: dict) -> tuple[Session, list[dict]]:
+    if not cycle["session_json"]:
+        raise HTTPException(status_code=404, detail="no proposal yet — run match first")
+    return sessions.load_session(cycle)
+
+
+def _stamp_reviewed(db: sqlite3.Connection, cycle: dict) -> None:
+    repo.update_cycle(db, cycle["id"], reviewed_rev=cycle["proposal_rev"])
 
 
 def require_owned_cycle(
@@ -146,6 +177,70 @@ def get_proposal(cycle: dict = Depends(require_owned_cycle)):
     if not cycle["session_json"]:
         raise HTTPException(status_code=404, detail="no proposal yet — run match first")
     session, _ = sessions.load_session(cycle)
+    return session.proposal
+
+
+@router.get("/cycles/{cycle_id}/review-board")
+def review_board(
+    cycle: dict = Depends(require_owned_cycle), db: sqlite3.Connection = Depends(get_db)
+):
+    """Live instructor review surface. The ONLY endpoint that serves
+    per-student demographics; rendered from raw_students at request time,
+    never persisted into the proposal."""
+    session, raw_students = _session_or_404(cycle)
+    students = {
+        raw["id"]: {
+            "name": raw.get("name", ""),
+            "gender": normalize_gender(raw.get("gender")),
+            "disability": normalize_disability(raw.get("disability")),
+            "availability": [bool(v) for v in raw["availability"]],
+            "free_slot_count": sum(1 for v in raw["availability"] if v),
+        }
+        for raw in raw_students
+    }
+    _stamp_reviewed(db, cycle)
+    repo.add_audit(db, cycle["id"], actor="instructor", action="review-board-viewed",
+                   detail=f"rev={cycle['proposal_rev']}")
+    return {
+        "proposal": session.proposal,
+        "students": students,
+        "config": sessions.config_out(cycle["config"]),
+    }
+
+
+@router.get("/cycles/{cycle_id}/composition")
+def composition(
+    cycle: dict = Depends(require_owned_cycle), db: sqlite3.Connection = Depends(get_db)
+):
+    """Per-group demographic aggregates (instructor-only)."""
+    session, _ = _session_or_404(cycle)
+    view = composition_view(session)
+    _stamp_reviewed(db, cycle)
+    repo.add_audit(db, cycle["id"], actor="instructor", action="composition-viewed",
+                   detail=f"rev={cycle['proposal_rev']}")
+    return view
+
+
+@router.post("/cycles/{cycle_id}/edits")
+def edit_proposal(
+    body: EditBody,
+    cycle: dict = Depends(require_owned_cycle),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    session, raw_students = _session_or_404(cycle)
+    try:
+        apply_edit(session, body.model_dump())
+    except InvalidEdit as exc:
+        # Relay the exact violated constraint; never force the edit through.
+        raise HTTPException(status_code=422, detail=str(exc))
+    except IllegalTransition as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"unknown student: {body.student_id}")
+    sessions.save_session(db, cycle["id"], session, raw_students)
+    repo.update_cycle(db, cycle["id"], proposal_rev=cycle["proposal_rev"] + 1)
+    repo.add_audit(db, cycle["id"], actor="instructor", action="edit",
+                   detail=f"{body.action} {body.student_id} -> group {body.to_group}")
     return session.proposal
 
 
