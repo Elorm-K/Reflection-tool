@@ -4,14 +4,17 @@
 	"workspaceFolder": "/workspace",
 	"workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
 	"remoteUser": "vscode",
-	
+
+	"postCreateCommand": "npm install -g @anthropic-ai/claude-code && pip install --user -e '.[dev,web]'",
+
 	"customizations": {
 		"vscode": {
 			"extensions": [
 				"ms-python.python",
 				"ms-python.isort",
 				"ms-python.autopep8",
-				"ms-python.mypy-type-checker"
+				"ms-python.mypy-type-checker",
+				"ms-python.pylint"
 			]
 		}
 	},

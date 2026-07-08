@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from reflectool.io_parse import ValidationError, parse_config, parse_roster
+from reflectool.notify import PreApprovalLeak, student_view
 
 from .. import repo, sessions
 from ..auth import get_db, require_student
@@ -134,3 +135,22 @@ def submit_survey(
     repo.add_audit(db, cycle["id"], actor=ctx["student_ext_id"], action="survey-submitted")
     # Survey values are stored, never echoed back — not even to the submitter.
     return student_safe({"ok": True})
+
+
+@router.get("/me/group")
+def my_group(
+    ctx: dict = Depends(require_student), db: sqlite3.Connection = Depends(get_db)
+):
+    cycle = _current_cycle(db, ctx)
+    if not cycle["session_json"] or cycle["status"] != "published":
+        # One generic message for every pre-publication state: a student must
+        # not be able to distinguish proposed from approved.
+        raise HTTPException(status_code=409, detail="your group is not published yet")
+    session, _ = sessions.load_session(cycle)
+    try:
+        view = student_view(session, ctx["student_ext_id"])
+    except PreApprovalLeak:
+        raise HTTPException(status_code=409, detail="your group is not published yet")
+    except KeyError:
+        raise HTTPException(status_code=404, detail="you are not part of this cycle")
+    return student_safe(view)

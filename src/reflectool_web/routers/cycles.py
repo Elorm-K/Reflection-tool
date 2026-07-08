@@ -17,13 +17,16 @@ from reflectool.io_parse import (
     parse_roster,
 )
 from reflectool.matcher import match as run_match
+from reflectool.notify import all_notifications
 from reflectool.output_format import build_proposal
 from reflectool.review_workflow import (
     IllegalTransition,
     InvalidEdit,
     Session,
     apply_edit,
+    approve as workflow_approve,
     composition_view,
+    publish as workflow_publish,
 )
 
 from .. import repo, sessions
@@ -53,6 +56,10 @@ def _session_or_404(cycle: dict) -> tuple[Session, list[dict]]:
 
 def _stamp_reviewed(db: sqlite3.Connection, cycle: dict) -> None:
     repo.update_cycle(db, cycle["id"], reviewed_rev=cycle["proposal_rev"])
+
+
+def _now(db: sqlite3.Connection) -> str:
+    return db.execute("SELECT datetime('now')").fetchone()[0]
 
 
 def require_owned_cycle(
@@ -242,6 +249,59 @@ def edit_proposal(
     repo.add_audit(db, cycle["id"], actor="instructor", action="edit",
                    detail=f"{body.action} {body.student_id} -> group {body.to_group}")
     return session.proposal
+
+
+@router.post("/cycles/{cycle_id}/approve")
+def approve_cycle(
+    cycle: dict = Depends(require_owned_cycle), db: sqlite3.Connection = Depends(get_db)
+):
+    """Approval gate: the instructor must have viewed the current revision of
+    the proposal (review board or composition) since the last match/edit."""
+    session, raw_students = _session_or_404(cycle)
+    if cycle["reviewed_rev"] != cycle["proposal_rev"]:
+        raise HTTPException(
+            status_code=409,
+            detail="review required: view the current proposal (review board or"
+            " composition) before approving — it changed since your last look",
+        )
+    try:
+        workflow_approve(session)
+    except IllegalTransition as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    sessions.save_session(db, cycle["id"], session, raw_students)
+    repo.update_cycle(db, cycle["id"], approved_at=_now(db))
+    repo.add_audit(db, cycle["id"], actor="instructor", action="approve")
+    return {"status": session.proposal["status"]}
+
+
+@router.post("/cycles/{cycle_id}/publish")
+def publish_cycle(
+    cycle: dict = Depends(require_owned_cycle), db: sqlite3.Connection = Depends(get_db)
+):
+    session, raw_students = _session_or_404(cycle)
+    try:
+        workflow_publish(session)
+    except IllegalTransition as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    sessions.save_session(db, cycle["id"], session, raw_students)
+    repo.update_cycle(db, cycle["id"], published_at=_now(db))
+    notified = len(all_notifications(session))
+    repo.add_audit(db, cycle["id"], actor="instructor", action="publish",
+                   detail=f"notified={notified}")
+    return {"status": session.proposal["status"], "notified": notified}
+
+
+@router.get("/cycles/{cycle_id}/notifications")
+def notifications_preview(
+    cycle: dict = Depends(require_owned_cycle), db: sqlite3.Connection = Depends(get_db)
+):
+    """Instructor preview of every student's notification (already
+    student-safe payloads)."""
+    session, _ = _session_or_404(cycle)
+    try:
+        return all_notifications(session)
+    except Exception as exc:  # PreApprovalLeak before publish
+        raise HTTPException(status_code=409, detail=str(exc))
 
 
 @router.get("/cycles/{cycle_id}/roster-status")
