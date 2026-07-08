@@ -14,9 +14,11 @@ COPY src/ src/
 RUN pip install --no-cache-dir ".[web]"
 COPY --from=frontend /build/dist /app/webdist
 
+# No VOLUME directive: Railway rejects it at build time. Persistence comes from
+# attaching a volume at /data (Railway dashboard / docker run -v); the app
+# creates the directory itself at startup if nothing is mounted.
 ENV REFLECTOOL_DB=/data/reflectool.db \
     REFLECTOOL_STATIC=/app/webdist
-VOLUME /data
 EXPOSE 8000
 
 # single worker: cycle mutations rely on in-process locking
