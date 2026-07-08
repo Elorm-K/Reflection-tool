@@ -34,9 +34,11 @@ Pure parsing functions, unit-tested with vitest:
 - `parseRosterJson(text) -> ParseResult`
   - Accepts a top-level array `[{student_id, name}, …]` or a `{students: […]}`
     wrapper.
-  - `id` is accepted as an alias for `student_id`.
-  - Entries missing/blank `student_id` or `name`, or with non-string values,
-    become per-entry errors (row index + reason); valid entries still parse.
+  - `id` is accepted as an alias for `student_id`; numeric ids are coerced to
+    strings (common in LMS JSON exports).
+  - Entries missing/blank `student_id` or `name`, or with other non-string
+    values, become per-entry errors (row index + reason); valid entries still
+    parse.
   - Non-JSON or wrong top-level shape is a single fatal error.
 - `parseRosterCsv(text) -> ParseResult` — extracts today's inline line parser:
   one student per line, `id, name`, comma or tab separated. Skips an optional
