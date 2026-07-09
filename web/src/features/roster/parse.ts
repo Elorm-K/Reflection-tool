@@ -13,15 +13,17 @@ function withDuplicateCheck(students: RosterEntry[], errors: string[]): ParseRes
 export function parseRosterCsv(text: string): ParseResult {
   const students: RosterEntry[] = []
   const errors: string[] = []
-  const lines = text
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
+  const lines = text.split('\n').map((line) => line.trim())
+  let sawFirstDataLine = false
   lines.forEach((line, i) => {
+    if (!line) return
     const [id, ...rest] = line.split(/[,\t]/)
     const student_id = id.trim()
     const name = rest.join(',').trim()
-    if (i === 0 && ['student_id', 'id'].includes(student_id.toLowerCase())) return
+    if (!sawFirstDataLine) {
+      sawFirstDataLine = true
+      if (['student_id', 'id'].includes(student_id.toLowerCase())) return
+    }
     if (!student_id) {
       errors.push(`line ${i + 1}: missing student id ("${line}")`)
       return

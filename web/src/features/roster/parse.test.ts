@@ -38,6 +38,11 @@ describe('parseRosterCsv', () => {
     expect(r.errors).toEqual(['line 2: missing name ("2024-002")'])
   })
 
+  it('reports file line numbers even when blank lines precede an error', () => {
+    const r = parseRosterCsv('2024-001, Jane\n\n\n2024-002')
+    expect(r.errors).toEqual(['line 4: missing name ("2024-002")'])
+  })
+
   it('reports lines with a missing id', () => {
     const r = parseRosterCsv(', Jane Doe')
     expect(r.students).toHaveLength(0)
