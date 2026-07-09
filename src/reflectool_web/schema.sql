@@ -86,3 +86,30 @@ CREATE TABLE IF NOT EXISTS audit_log (
     detail     TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- In-app notices to individual students (e.g. post-publish reassignment).
+-- Bodies are always demographic-free: they pass student_safe() at write time.
+CREATE TABLE IF NOT EXISTS notifications (
+    id            INTEGER PRIMARY KEY,
+    cycle_id      INTEGER NOT NULL REFERENCES cycles(id),
+    enrollment_id INTEGER NOT NULL REFERENCES enrollments(id),
+    kind          TEXT NOT NULL,           -- 'group-changed' | 'group-updated'
+    body          TEXT NOT NULL,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+    read_at       TEXT
+);
+
+-- Email records are composed and stored but never sent (no transport yet);
+-- status stays 'disabled' until real sending is activated.
+CREATE TABLE IF NOT EXISTS email_outbox (
+    id              INTEGER PRIMARY KEY,
+    kind            TEXT NOT NULL,          -- 'group-changed' | 'password-reset'
+    recipient_email TEXT,                   -- NULL for students (no email on roster)
+    enrollment_id   INTEGER REFERENCES enrollments(id),
+    instructor_id   INTEGER REFERENCES instructors(id),
+    subject         TEXT NOT NULL,
+    body            TEXT NOT NULL,
+    status          TEXT NOT NULL DEFAULT 'disabled' CHECK (status IN ('disabled', 'sent')),
+    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    sent_at         TEXT
+);

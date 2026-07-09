@@ -113,3 +113,59 @@ def test_audit_log(db):
     repo.add_audit(db, cyc["id"], actor="instructor", action="match", detail="proposal generated")
     entries = repo.list_audit(db, cyc["id"])
     assert entries[0]["action"] == "match"
+
+
+@pytest.fixture()
+def enrolled(db):
+    iid = repo.create_instructor(db, "a@x.org", "h", "A")
+    cls = repo.create_class(db, iid, name="CS50", term="F26")
+    repo.replace_roster(db, cls["id"], [("2024-001", "Jane"), ("2024-002", "Mark")])
+    enr = repo.claim_enrollment(db, cls["id"], "2024-001")
+    cyc = repo.create_cycle(db, cls["id"], label="W1", config={})
+    return {"iid": iid, "cls": cls, "enr": enr, "cyc": cyc}
+
+
+def test_notifications_roundtrip(db, enrolled):
+    cyc, enr = enrolled["cyc"], enrolled["enr"]
+    assert repo.list_notifications(db, enr["id"]) == []
+    assert repo.count_unread_notifications(db, enr["id"]) == 0
+    repo.add_notification(db, cyc["id"], enr["id"], kind="group-changed", body="Moved to Group 2.")
+    repo.add_notification(db, cyc["id"], enr["id"], kind="group-updated", body="Membership changed.")
+    notes = repo.list_notifications(db, enr["id"])
+    assert len(notes) == 2
+    assert notes[0]["kind"] == "group-updated"  # newest first
+    assert notes[0]["read_at"] is None
+    assert repo.count_unread_notifications(db, enr["id"]) == 2
+    marked = repo.mark_notifications_read(db, enr["id"])
+    assert marked == 2
+    assert repo.count_unread_notifications(db, enr["id"]) == 0
+    assert all(n["read_at"] for n in repo.list_notifications(db, enr["id"]))
+
+
+def test_outbox_email_inserted_disabled(db, enrolled):
+    oid = repo.add_outbox_email(
+        db, kind="group-changed", subject="Your group changed",
+        body="Moved to Group 2.", enrollment_id=enrolled["enr"]["id"],
+    )
+    row = db.execute("SELECT * FROM email_outbox WHERE id = ?", (oid,)).fetchone()
+    assert row["status"] == "disabled"
+    assert row["sent_at"] is None
+    assert row["recipient_email"] is None  # students have no email on the roster
+
+
+def test_get_enrollment_for_student(db, enrolled):
+    cls, enr = enrolled["cls"], enrolled["enr"]
+    found = repo.get_enrollment_for_student(db, cls["id"], "2024-001")
+    assert found["id"] == enr["id"]
+    # 2024-002 is on the roster but never claimed an enrollment
+    assert repo.get_enrollment_for_student(db, cls["id"], "2024-002") is None
+    assert repo.get_enrollment_for_student(db, cls["id"], "2024-999") is None
+
+
+def test_reset_claim_purges_notifications_and_outbox(db, enrolled):
+    cls, cyc, enr = enrolled["cls"], enrolled["cyc"], enrolled["enr"]
+    repo.add_notification(db, cyc["id"], enr["id"], kind="group-changed", body="x")
+    repo.add_outbox_email(db, kind="group-changed", subject="s", body="b", enrollment_id=enr["id"])
+    assert repo.reset_claim(db, cls["id"], "2024-001") is True
+    assert db.execute("SELECT COUNT(*) c FROM notifications").fetchone()["c"] == 0
+    assert db.execute("SELECT COUNT(*) c FROM email_outbox").fetchone()["c"] == 0
