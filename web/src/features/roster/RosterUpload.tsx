@@ -82,8 +82,8 @@ export function RosterUpload({ onChange }: { onChange: (result: ParseResult) => 
                   </tr>
                 </thead>
                 <tbody>
-                  {result.students.map((s) => (
-                    <tr key={s.student_id}>
+                  {result.students.map((s, i) => (
+                    <tr key={`${i}-${s.student_id}`}>
                       <td>{s.student_id}</td>
                       <td>{s.name}</td>
                     </tr>
