@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { setAuth } from '../../lib/api/client'
 import type { ApiError } from '../../lib/api/client'
 import { instructorApi } from '../../lib/api/instructor'
@@ -75,6 +75,13 @@ export function LoginPage() {
           <Button type="submit" disabled={busy}>
             {mode === 'login' ? 'Log in' : 'Create account'}
           </Button>
+          {mode === 'login' && (
+            <p style={{ margin: '12px 0 0' }}>
+              <Link to="/forgot-password" className="mono-label">
+                Forgot password?
+              </Link>
+            </p>
+          )}
         </form>
         <Button variant="ghost" onClick={() => setMode(mode === 'login' ? 'register' : 'login')}>
           {mode === 'login' ? 'Need an account? Register' : 'Have an account? Log in'}
