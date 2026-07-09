@@ -555,7 +555,13 @@ import type { ParseResult } from '../../features/roster/parse'
           >
             Save roster
           </Button>
-          <Button variant="ghost" onClick={() => setRosterOpen(false)}>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setRosterDraft({ students: [], errors: [] })
+              setRosterOpen(false)
+            }}
+          >
             Cancel
           </Button>
         </div>
