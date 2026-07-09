@@ -120,13 +120,33 @@ def _refresh_group(session: Session, group: dict) -> None:
     ]
 
 
-def apply_edit(session: Session, edit: dict) -> None:
+def apply_edit(session: Session, edit: dict) -> dict:
     """Apply a manual instructor edit (move / assign an unplaced student),
     re-validating hard constraints; invalid edits leave the session unchanged."""
     if session.proposal["status"] != "proposed":
         raise IllegalTransition(
             f"edits are only allowed while status is 'proposed', not {session.proposal['status']!r}"
         )
+    return _apply_edit_inner(session, edit, live=False)
+
+
+def apply_live_edit(session: Session, edit: dict) -> dict:
+    """Apply an instructor edit to a *published* grouping (a live reassignment).
+
+    Same hard-constraint re-validation as apply_edit; the status never changes.
+    Cycles at 'approved' stay frozen — what was approved is exactly what gets
+    published. Audit entries are prefixed live-move / live-assign so the trail
+    distinguishes pre-publish shaping from changes students already saw.
+    """
+    if session.proposal["status"] != "published":
+        raise IllegalTransition(
+            f"live edits are only allowed while status is 'published', "
+            f"not {session.proposal['status']!r}"
+        )
+    return _apply_edit_inner(session, edit, live=True)
+
+
+def _apply_edit_inner(session: Session, edit: dict, live: bool) -> dict:
     action = edit.get("action")
     student_id = edit.get("student_id")
     to_group = edit.get("to_group")
@@ -137,12 +157,15 @@ def apply_edit(session: Session, edit: dict) -> None:
     if target is None:
         raise InvalidEdit(f"no group with id {to_group}")
 
+    prefix = "live-" if live else ""
+    from_group = None
     if action == "move":
         source = next((g for g in groups if student_id in g["members"]), None)
         if source is None:
             raise InvalidEdit(f"{student_id} is not in any group (use action 'assign')")
         if source["group_id"] == to_group:
             raise InvalidEdit(f"{student_id} is already in group {to_group}")
+        from_group = source["group_id"]
         new_source = [session.student(sid) for sid in source["members"] if sid != student_id]
         new_target = [session.student(sid) for sid in target["members"]] + [student]
         _validate_group(session, new_source, allow_oversize=False)
@@ -152,7 +175,7 @@ def apply_edit(session: Session, edit: dict) -> None:
         _refresh_group(session, source)
         _refresh_group(session, target)
         session.audit_log.append(
-            f"move {student_id}: group {source['group_id']} -> {to_group}"
+            f"{prefix}move {student_id}: group {source['group_id']} -> {to_group}"
             + (" [oversize override]" if allow_oversize and len(target["members"]) > session.config.max_size else "")
         )
     elif action == "assign":
@@ -165,7 +188,13 @@ def apply_edit(session: Session, edit: dict) -> None:
             u for u in session.proposal["unplaced"] if u["student_id"] != student_id
         ]
         _refresh_group(session, target)
-        session.audit_log.append(f"assign unplaced {student_id} -> group {to_group}")
+        session.audit_log.append(f"{prefix}assign unplaced {student_id} -> group {to_group}")
     else:
         raise InvalidEdit(f"unknown edit action: {action!r}")
     assert_no_demographics(session.proposal)
+    return {
+        "action": action,
+        "student_id": student_id,
+        "from_group": from_group,
+        "to_group": to_group,
+    }
