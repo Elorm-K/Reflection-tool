@@ -377,3 +377,52 @@ def get_enrollment_for_student(db: sqlite3.Connection, class_id: int,
         " WHERE r.class_id = ? AND r.student_ext_id = ?",
         (class_id, student_ext_id),
     ).fetchone())
+
+
+# --- password resets ----------------------------------------------------------
+
+def create_password_reset(db: sqlite3.Connection, instructor_id: int,
+                          token_hash: str, ttl_minutes: int = 60) -> int:
+    cur = db.execute(
+        "INSERT INTO password_resets (instructor_id, token_hash, expires_at)"
+        " VALUES (?, ?, datetime('now', ?))",
+        (instructor_id, token_hash, f"+{int(ttl_minutes)} minutes"),
+    )
+    db.commit()
+    return cur.lastrowid
+
+
+def get_valid_password_reset(db: sqlite3.Connection, token_hash: str) -> dict | None:
+    return _row(db.execute(
+        "SELECT * FROM password_resets WHERE token_hash = ?"
+        " AND used_at IS NULL AND expires_at > datetime('now')",
+        (token_hash,),
+    ).fetchone())
+
+
+def mark_reset_used(db: sqlite3.Connection, reset_id: int, instructor_id: int) -> None:
+    with db:
+        db.execute(
+            "UPDATE password_resets SET used_at = datetime('now') WHERE id = ?",
+            (reset_id,),
+        )
+        # revoke the instructor's other outstanding reset links
+        db.execute(
+            "DELETE FROM password_resets WHERE instructor_id = ? AND id != ?"
+            " AND used_at IS NULL",
+            (instructor_id, reset_id),
+        )
+
+
+def update_instructor_password(db: sqlite3.Connection, instructor_id: int,
+                               password_hash: str) -> None:
+    db.execute(
+        "UPDATE instructors SET password_hash = ? WHERE id = ?",
+        (password_hash, instructor_id),
+    )
+    db.commit()
+
+
+def delete_instructor_tokens(db: sqlite3.Connection, instructor_id: int) -> None:
+    db.execute("DELETE FROM auth_tokens WHERE instructor_id = ?", (instructor_id,))
+    db.commit()

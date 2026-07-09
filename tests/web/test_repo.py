@@ -162,6 +162,41 @@ def test_get_enrollment_for_student(db, enrolled):
     assert repo.get_enrollment_for_student(db, cls["id"], "2024-999") is None
 
 
+def test_password_reset_roundtrip(db):
+    iid = repo.create_instructor(db, "a@x.org", "h", "A")
+    rid = repo.create_password_reset(db, iid, token_hash="abc123")
+    found = repo.get_valid_password_reset(db, "abc123")
+    assert found["id"] == rid and found["instructor_id"] == iid
+    assert repo.get_valid_password_reset(db, "nope") is None
+
+
+def test_password_reset_expired_is_invalid(db):
+    iid = repo.create_instructor(db, "a@x.org", "h", "A")
+    repo.create_password_reset(db, iid, token_hash="abc123")
+    db.execute("UPDATE password_resets SET expires_at = datetime('now', '-1 minute')")
+    db.commit()
+    assert repo.get_valid_password_reset(db, "abc123") is None
+
+
+def test_password_reset_single_use_and_purges_siblings(db):
+    iid = repo.create_instructor(db, "a@x.org", "h", "A")
+    rid = repo.create_password_reset(db, iid, token_hash="first")
+    repo.create_password_reset(db, iid, token_hash="second")
+    repo.mark_reset_used(db, rid, iid)
+    assert repo.get_valid_password_reset(db, "first") is None
+    # outstanding sibling resets are revoked once one is used
+    assert repo.get_valid_password_reset(db, "second") is None
+
+
+def test_update_password_and_revoke_tokens(db):
+    iid = repo.create_instructor(db, "a@x.org", "oldhash", "A")
+    tok = repo.issue_token(db, kind="instructor", instructor_id=iid)
+    repo.update_instructor_password(db, iid, "newhash")
+    assert repo.get_instructor_by_email(db, "a@x.org")["password_hash"] == "newhash"
+    repo.delete_instructor_tokens(db, iid)
+    assert repo.lookup_token(db, tok) is None
+
+
 def test_reset_claim_purges_notifications_and_outbox(db, enrolled):
     cls, cyc, enr = enrolled["cls"], enrolled["cyc"], enrolled["enr"]
     repo.add_notification(db, cyc["id"], enr["id"], kind="group-changed", body="x")

@@ -99,6 +99,17 @@ CREATE TABLE IF NOT EXISTS notifications (
     read_at       TEXT
 );
 
+-- Instructor password resets: single-use, 60-minute expiry. Only the sha256
+-- of the token is stored — a DB leak grants no resets.
+CREATE TABLE IF NOT EXISTS password_resets (
+    id            INTEGER PRIMARY KEY,
+    instructor_id INTEGER NOT NULL REFERENCES instructors(id),
+    token_hash    TEXT NOT NULL UNIQUE,
+    expires_at    TEXT NOT NULL,
+    used_at       TEXT,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Email records are composed and stored but never sent (no transport yet);
 -- status stays 'disabled' until real sending is activated.
 CREATE TABLE IF NOT EXISTS email_outbox (
