@@ -338,7 +338,7 @@ export function RosterUpload({ onChange }: { onChange: (result: ParseResult) => 
             {result.students.length === 0 && result.errors.length === 0 ? ' — nothing to save' : ''}
           </p>
           {result.errors.length > 0 && (
-            <ul style={{ color: 'var(--danger, #b00020)', paddingLeft: 20, marginBottom: 8 }}>
+            <ul style={{ color: 'var(--alert)', paddingLeft: 20, marginBottom: 8 }}>
               {result.errors.map((err) => (
                 <li key={err}>{err}</li>
               ))}

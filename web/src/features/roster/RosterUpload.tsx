@@ -18,10 +18,15 @@ export function RosterUpload({ onChange }: { onChange: (result: ParseResult) => 
 
   const onFile = async (file: File | undefined) => {
     if (!file) return
-    const text = await file.text()
     setFileName(file.name)
     setPasted('')
-    update(parseRosterFile(file.name, text))
+    try {
+      const text = await file.text()
+      update(parseRosterFile(file.name, text))
+    } catch {
+      update({ students: [], errors: ['could not read file'] })
+    }
+    if (fileInput.current) fileInput.current.value = ''
   }
 
   const onPaste = (text: string) => {
@@ -61,9 +66,9 @@ export function RosterUpload({ onChange }: { onChange: (result: ParseResult) => 
             {result.students.length === 0 && result.errors.length === 0 ? ' — nothing to save' : ''}
           </p>
           {result.errors.length > 0 && (
-            <ul style={{ color: 'var(--danger, #b00020)', paddingLeft: 20, marginBottom: 8 }}>
-              {result.errors.map((err) => (
-                <li key={err}>{err}</li>
+            <ul style={{ color: 'var(--alert)', paddingLeft: 20, marginBottom: 8 }}>
+              {result.errors.map((err, i) => (
+                <li key={`${i}-${err}`}>{err}</li>
               ))}
             </ul>
           )}
