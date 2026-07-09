@@ -160,6 +160,29 @@ def my_group(
     return student_safe(view)
 
 
+@router.get("/me/notifications")
+def my_notifications(
+    ctx: dict = Depends(require_student), db: sqlite3.Connection = Depends(get_db)
+):
+    """In-app notices (e.g. post-publish reassignment). Bodies were built
+    demographic-free at write time; asserted again here anyway."""
+    notes = [
+        {"id": n["id"], "kind": n["kind"], "body": n["body"],
+         "created_at": n["created_at"], "read_at": n["read_at"]}
+        for n in repo.list_notifications(db, ctx["enrollment_id"])
+    ]
+    unread = repo.count_unread_notifications(db, ctx["enrollment_id"])
+    return student_safe({"notifications": notes, "unread": unread})
+
+
+@router.post("/me/notifications/read")
+def mark_my_notifications_read(
+    ctx: dict = Depends(require_student), db: sqlite3.Connection = Depends(get_db)
+):
+    marked = repo.mark_notifications_read(db, ctx["enrollment_id"])
+    return student_safe({"ok": True, "marked": marked})
+
+
 def _published_group_id(db: sqlite3.Connection, ctx: dict) -> tuple[dict, int]:
     """The student's group id in the published proposal, or 409/404."""
     cycle = _current_cycle(db, ctx)
