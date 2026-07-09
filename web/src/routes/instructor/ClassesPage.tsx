@@ -4,24 +4,15 @@ import { Link } from 'react-router-dom'
 import { instructorApi } from '../../lib/api/instructor'
 import type { ApiError } from '../../lib/api/client'
 import { Badge, Button, Card, Field, Modal, useToast } from '../../components/ui'
+import { RosterUpload } from '../../features/roster/RosterUpload'
+import type { ParseResult } from '../../features/roster/parse'
 import styles from './instructor.module.css'
-
-function parseRosterText(text: string): { student_id: string; name: string }[] {
-  return text
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const [id, ...rest] = line.split(/[,\t]/)
-      return { student_id: id.trim(), name: rest.join(',').trim() }
-    })
-}
 
 export function ClassesPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [name, setName] = useState('')
   const [term, setTerm] = useState('')
-  const [rosterText, setRosterText] = useState('')
+  const [roster, setRoster] = useState<ParseResult>({ students: [], errors: [] })
   const toast = useToast()
   const queryClient = useQueryClient()
 
@@ -30,8 +21,7 @@ export function ClassesPage() {
   const createClass = useMutation({
     mutationFn: async () => {
       const cls = await instructorApi.createClass(name, term)
-      const roster = parseRosterText(rosterText)
-      if (roster.length > 0) await instructorApi.uploadRoster(cls.id, roster)
+      if (roster.students.length > 0) await instructorApi.uploadRoster(cls.id, roster.students)
       return cls
     },
     onSuccess: (cls) => {
@@ -39,7 +29,7 @@ export function ClassesPage() {
       setCreateOpen(false)
       setName('')
       setTerm('')
-      setRosterText('')
+      setRoster({ students: [], errors: [] })
       toast(`Class created — share code ${cls.class_code} with your students`)
     },
     onError: (err) => toast((err as unknown as ApiError).detail ?? 'could not create class', true),
@@ -92,16 +82,12 @@ export function ClassesPage() {
         <Field label="Term">
           <input value={term} onChange={(e) => setTerm(e.target.value)} placeholder="Fall 2026" />
         </Field>
-        <Field label="Roster — one student per line: id, name">
-          <textarea
-            value={rosterText}
-            onChange={(e) => setRosterText(e.target.value)}
-            rows={6}
-            placeholder={'2024-001, Jane Doe\n2024-002, Mark Smith'}
-          />
-        </Field>
+        <RosterUpload onChange={setRoster} />
         <div style={{ display: 'flex', gap: 12 }}>
-          <Button onClick={() => createClass.mutate()} disabled={!name || createClass.isPending}>
+          <Button
+            onClick={() => createClass.mutate()}
+            disabled={!name || roster.errors.length > 0 || createClass.isPending}
+          >
             Create
           </Button>
           <Button variant="ghost" onClick={() => setCreateOpen(false)}>
