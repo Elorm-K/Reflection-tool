@@ -5,6 +5,8 @@ import { instructorApi } from '../../lib/api/instructor'
 import type { ApiError } from '../../lib/api/client'
 import { Badge, Button, Card, Field, Modal, Table, useToast } from '../../components/ui'
 import { useClassCycle } from './useClassCycle'
+import { RosterUpload } from '../../features/roster/RosterUpload'
+import type { ParseResult } from '../../features/roster/parse'
 import styles from './instructor.module.css'
 
 export function DashboardPage() {
@@ -12,6 +14,8 @@ export function DashboardPage() {
   const [cycleOpen, setCycleOpen] = useState(false)
   const [label, setLabel] = useState('')
   const [deadline, setDeadline] = useState('')
+  const [rosterOpen, setRosterOpen] = useState(false)
+  const [rosterDraft, setRosterDraft] = useState<ParseResult>({ students: [], errors: [] })
   const toast = useToast()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
@@ -42,6 +46,18 @@ export function DashboardPage() {
       toast('Cycle created — students can now submit availability')
     },
     onError: (err) => toast((err as unknown as ApiError).detail ?? 'failed', true),
+  })
+
+  const saveRoster = useMutation({
+    mutationFn: () => instructorApi.uploadRoster(classId, rosterDraft.students),
+    onSuccess: (r) => {
+      queryClient.invalidateQueries({ queryKey: ['roster', classId] })
+      queryClient.invalidateQueries({ queryKey: ['rosterStatus'] })
+      setRosterOpen(false)
+      setRosterDraft({ students: [], errors: [] })
+      toast(`Roster saved — ${r.count} students`)
+    },
+    onError: (err) => toast((err as unknown as ApiError).detail ?? 'could not save roster', true),
   })
 
   const runMatch = useMutation({
@@ -81,7 +97,12 @@ export function DashboardPage() {
             {cycle?.deadline ? ` · deadline ${cycle.deadline}` : ''}
           </p>
         </div>
-        {cycle && <Badge>{cycle.status}</Badge>}
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <Button variant="secondary" onClick={() => setRosterOpen(true)}>
+            Manage roster
+          </Button>
+          {cycle && <Badge>{cycle.status}</Badge>}
+        </div>
       </div>
 
       {!cycle && (
@@ -183,6 +204,36 @@ export function DashboardPage() {
             ))}
         </>
       )}
+
+      <Modal open={rosterOpen}>
+        <h3 style={{ marginBottom: 8 }}>Manage roster</h3>
+        <p className={styles.pageIntro} style={{ marginBottom: 16 }}>
+          Current roster: {roster?.students.length ?? 0} students. Uploading{' '}
+          <strong>replaces</strong> the roster; students who have already joined are kept.
+        </p>
+        <RosterUpload onChange={setRosterDraft} />
+        <div style={{ display: 'flex', gap: 12 }}>
+          <Button
+            onClick={() => saveRoster.mutate()}
+            disabled={
+              rosterDraft.students.length === 0 ||
+              rosterDraft.errors.length > 0 ||
+              saveRoster.isPending
+            }
+          >
+            Save roster
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setRosterDraft({ students: [], errors: [] })
+              setRosterOpen(false)
+            }}
+          >
+            Cancel
+          </Button>
+        </div>
+      </Modal>
 
       <Modal open={cycleOpen}>
         <h3 style={{ marginBottom: 16 }}>Start a matching cycle</h3>
