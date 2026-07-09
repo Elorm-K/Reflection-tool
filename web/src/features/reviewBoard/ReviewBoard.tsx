@@ -157,10 +157,13 @@ function GroupColumn({
 export function ReviewBoard({
   cycleId,
   editable,
+  live = false,
   onApprove,
 }: {
   cycleId: number
   editable: boolean
+  /** Cycle is published: every edit needs explicit confirmation and notifies students. */
+  live?: boolean
   onApprove: () => void
 }) {
   const toast = useToast()
@@ -169,6 +172,10 @@ export function ReviewBoard({
   const [active, setActive] = useState<string | null>(null)
   const [hoverBlocked, setHoverBlocked] = useState<Record<number, string | null>>({})
   const [pendingOversize, setPendingOversize] = useState<EditRequest | null>(null)
+  const [pendingLive, setPendingLive] = useState<{
+    req: EditRequest
+    needsOversize: boolean
+  } | null>(null)
 
   const { data: board } = useQuery({
     queryKey: ['reviewBoard', cycleId],
@@ -200,6 +207,21 @@ export function ReviewBoard({
       queryClient.invalidateQueries({ queryKey: ['cycles'] })
       // the edit bumped proposal_rev: re-stamp the review by refetching the board
       queryClient.invalidateQueries({ queryKey: ['reviewBoard', cycleId] })
+    },
+  })
+
+  // Live (published) reassignment: server-first, no optimistic update —
+  // students are notified the moment the server accepts.
+  const reassign = useMutation({
+    mutationFn: (req: EditRequest) => reviewApi.reassign(cycleId, req),
+    onError: (err) => {
+      toast((err as unknown as ApiError).detail ?? 'reassignment rejected', true)
+    },
+    onSuccess: (resp) => {
+      const prev = queryClient.getQueryData<Board>(['reviewBoard', cycleId])
+      if (prev) queryClient.setQueryData(['reviewBoard', cycleId], { ...prev, proposal: resp.proposal })
+      queryClient.invalidateQueries({ queryKey: ['reviewBoard', cycleId] })
+      toast(`Reassigned — ${resp.notified} students notified`)
     },
   })
 
@@ -245,6 +267,11 @@ export function ReviewBoard({
         toast(`Blocked: ${check.reason} The move was not applied.`, true)
       return
     }
+    if (live) {
+      // Published cycle: always confirm before a live change reaches students.
+      setPendingLive({ req, needsOversize: check.needsOversize })
+      return
+    }
     if (check.needsOversize) {
       setPendingOversize(req)
       return
@@ -264,11 +291,12 @@ export function ReviewBoard({
           )}
         </div>
         <div style={{ display: 'flex', gap: 12 }}>
-          {editable && (
+          {editable && !live && (
             <Button variant="secondary" onClick={onApprove}>
               Approve →
             </Button>
           )}
+          {live && <Badge>Live — students are notified of changes</Badge>}
         </div>
       </div>
 
@@ -329,6 +357,43 @@ export function ReviewBoard({
           )}
         </DragOverlay>
       </DndContext>
+
+      <Modal
+        open={pendingLive != null}
+        title="Reassign in a published cycle?"
+        onClose={() => setPendingLive(null)}
+      >
+        <p>
+          This cycle is <strong>published</strong> — groups are live.{' '}
+          <strong>{board.students[pendingLive?.req.student_id ?? '']?.name || pendingLive?.req.student_id}</strong>{' '}
+          will be {pendingLive?.req.action === 'assign' ? 'assigned' : 'moved'} to Group{' '}
+          {pendingLive?.req.to_group}, and every affected student will be notified.
+        </p>
+        {pendingLive?.needsOversize && (
+          <p>
+            ⚠ The target group will exceed the maximum size of {board.config.max_size} (explicit
+            oversize override).
+          </p>
+        )}
+        <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
+          <Button
+            onClick={() => {
+              if (pendingLive)
+                reassign.mutate({
+                  ...pendingLive.req,
+                  allow_oversize: pendingLive.needsOversize,
+                })
+              setPendingLive(null)
+            }}
+            disabled={reassign.isPending}
+          >
+            Reassign &amp; notify
+          </Button>
+          <Button variant="ghost" onClick={() => setPendingLive(null)}>
+            Cancel
+          </Button>
+        </div>
+      </Modal>
 
       <Modal open={pendingOversize != null} title="⚠ Override constraint?">
         <p>

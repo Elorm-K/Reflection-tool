@@ -90,6 +90,37 @@
   }
 }
 
+.noticeCard {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  border: var(--border);
+  border-left: 6px solid var(--ink);
+  background: var(--panel);
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+.noticeBody {
+  margin: var(--space-1) 0 0;
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+.navBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  background: var(--alert);
+  color: var(--paper);
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  font-weight: 700;
+}
+
 .pageTitle {
   font-size: 1.5rem;
   margin-bottom: var(--space-2);

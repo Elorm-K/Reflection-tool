@@ -42,6 +42,7 @@ export function ReviewPage() {
     )
 
   const editable = cycle.status === 'proposed'
+  const live = cycle.status === 'published'
 
   return (
     <>
@@ -50,9 +51,11 @@ export function ReviewPage() {
         <div>
           <h2 className={styles.pageTitle}>Review proposal</h2>
           <p className={styles.pageIntro}>
-            {editable
-              ? 'Drag students between groups; every move is re-validated instantly. Demographic labels are visible only to you, only here.'
-              : `This proposal is ${cycle.status} — the board is read-only.`}
+            {editable &&
+              'Drag students between groups; every move is re-validated instantly. Demographic labels are visible only to you, only here.'}
+            {live &&
+              'Groups are live — a move requires confirmation, is re-validated against the hard constraints, and notifies every affected student.'}
+            {!editable && !live && `This proposal is ${cycle.status} — the board is read-only.`}
           </p>
         </div>
         {editable && (
@@ -67,7 +70,12 @@ export function ReviewPage() {
           </Button>
         )}
       </div>
-      <ReviewBoard cycleId={cycle.id} editable={editable} onApprove={() => approve.mutate()} />
+      <ReviewBoard
+        cycleId={cycle.id}
+        editable={editable || live}
+        live={live}
+        onApprove={() => approve.mutate()}
+      />
     </>
   )
 }
