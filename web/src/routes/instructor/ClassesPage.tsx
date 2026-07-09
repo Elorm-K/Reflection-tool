@@ -90,7 +90,13 @@ export function ClassesPage() {
           >
             Create
           </Button>
-          <Button variant="ghost" onClick={() => setCreateOpen(false)}>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setRoster({ students: [], errors: [] })
+              setCreateOpen(false)
+            }}
+          >
             Cancel
           </Button>
         </div>
