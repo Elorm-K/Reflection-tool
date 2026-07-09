@@ -74,8 +74,14 @@ export function ClassesPage() {
         </Button>
       </div>
 
-      <Modal open={createOpen}>
-        <h3 style={{ marginBottom: 16 }}>Create class</h3>
+      <Modal
+        open={createOpen}
+        title="Create class"
+        onClose={() => {
+          setRoster({ students: [], errors: [] })
+          setCreateOpen(false)
+        }}
+      >
         <Field label="Class name">
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="CS50: Intro…" />
         </Field>

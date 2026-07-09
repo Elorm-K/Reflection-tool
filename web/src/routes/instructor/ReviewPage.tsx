@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { instructorApi } from '../../lib/api/instructor'
 import type { ApiError } from '../../lib/api/client'
-import { Button, useToast } from '../../components/ui'
+import { BackLink, Button, useToast } from '../../components/ui'
 import { ReviewBoard } from '../../features/reviewBoard/ReviewBoard'
 import { useClassCycle } from './useClassCycle'
 import styles from './instructor.module.css'
@@ -45,6 +45,7 @@ export function ReviewPage() {
 
   return (
     <>
+      <BackLink to={`/i/classes/${classId}`}>Overview</BackLink>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
         <div>
           <h2 className={styles.pageTitle}>Review proposal</h2>

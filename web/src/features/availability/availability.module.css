@@ -50,6 +50,13 @@
   min-height: 28px;
   padding: 0;
 }
+/* 40px (not 44) on touch: the grid is a drag-paint gesture, not per-cell taps,
+   and full 44px rows would make the grid scroll excessively. */
+@media (pointer: coarse) {
+  .cell {
+    min-height: 40px;
+  }
+}
 .cellOn {
   composes: cell;
   background: var(--ink);

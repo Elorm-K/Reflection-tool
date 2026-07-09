@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { studentApi } from '../../lib/api/student'
 import type { ApiError } from '../../lib/api/client'
-import { Badge, Button, Card, useToast } from '../../components/ui'
+import { BackLink, Badge, Button, Card, Field, useToast } from '../../components/ui'
 import styles from './student.module.css'
 
 const GENDER_OPTIONS = ['Woman', 'Man', 'Non-binary', 'Prefer not to disclose']
@@ -64,6 +64,7 @@ export function SurveyPage() {
 
   return (
     <>
+      <BackLink to="/s/availability">Availability</BackLink>
       <h2 className={styles.pageTitle}>Demographic Survey</h2>
       <Badge>Optional</Badge>
       <p className={styles.pageIntro} style={{ marginTop: 12 }}>
@@ -75,16 +76,13 @@ export function SurveyPage() {
           <Badge>Q1</Badge> Gender
         </h3>
         <OptionRow options={GENDER_OPTIONS} value={gender} onPick={setGender} />
-        <label className="mono-label" htmlFor="gender-other">
-          Self-describe or other
-        </label>
-        <input
-          id="gender-other"
-          value={genderOther}
-          onChange={(e) => setGenderOther(e.target.value)}
-          placeholder="Type here…"
-          style={{ width: '100%', border: 'var(--border)', padding: 12, marginTop: 4 }}
-        />
+        <Field label="Self-describe or other">
+          <input
+            value={genderOther}
+            onChange={(e) => setGenderOther(e.target.value)}
+            placeholder="Type here…"
+          />
+        </Field>
       </Card>
 
       <div style={{ height: 16 }} />
@@ -94,16 +92,13 @@ export function SurveyPage() {
           <Badge>Q2</Badge> Disability
         </h3>
         <OptionRow options={DISABILITY_OPTIONS} value={disability} onPick={setDisability} />
-        <label className="mono-label" htmlFor="disability-other">
-          Self-describe or other
-        </label>
-        <input
-          id="disability-other"
-          value={disabilityOther}
-          onChange={(e) => setDisabilityOther(e.target.value)}
-          placeholder="Type here…"
-          style={{ width: '100%', border: 'var(--border)', padding: 12, marginTop: 4 }}
-        />
+        <Field label="Self-describe or other">
+          <input
+            value={disabilityOther}
+            onChange={(e) => setDisabilityOther(e.target.value)}
+            placeholder="Type here…"
+          />
+        </Field>
       </Card>
 
       <div className={styles.privacyNote}>

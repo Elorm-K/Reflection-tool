@@ -8,7 +8,7 @@
 
 .board {
   display: grid;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: 1fr;
   gap: var(--space-5);
   align-items: start;
 }
@@ -17,10 +17,18 @@
   border: var(--border);
   background: var(--panel);
   padding: var(--space-4);
-  position: sticky;
-  top: var(--space-4);
-  max-height: calc(100dvh - 48px);
-  overflow-y: auto;
+}
+
+@media (min-width: 768px) {
+  .board {
+    grid-template-columns: 280px 1fr;
+  }
+  .rail {
+    position: sticky;
+    top: var(--space-4);
+    max-height: calc(100dvh - 48px);
+    overflow-y: auto;
+  }
 }
 .railTitle {
   display: flex;

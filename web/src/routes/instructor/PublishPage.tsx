@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { instructorApi } from '../../lib/api/instructor'
 import type { ApiError } from '../../lib/api/client'
-import { Badge, Button, Card, LifecycleSteps, Modal, useToast } from '../../components/ui'
+import { BackLink, Badge, Button, Card, LifecycleSteps, Modal, useToast } from '../../components/ui'
 import { useClassCycle } from './useClassCycle'
 import styles from './instructor.module.css'
 
@@ -46,6 +46,8 @@ export function PublishPage() {
 
   return (
     <>
+      <BackLink to={`/i/classes/${classId}`}>Overview</BackLink>
+      <div style={{ height: 8 }} />
       <Badge>Step 4: Final approval</Badge>
       <h2 className={styles.pageTitle} style={{ marginTop: 8 }}>
         Approve &amp; publish groups
@@ -120,8 +122,7 @@ export function PublishPage() {
         )}
       </Card>
 
-      <Modal open={confirmOpen}>
-        <h3>Publish groups?</h3>
+      <Modal open={confirmOpen} title="Publish groups?" onClose={() => setConfirmOpen(false)}>
         <p>
           Every student will immediately see their group and meeting time. This cannot be
           undone.

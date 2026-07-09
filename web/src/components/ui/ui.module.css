@@ -20,6 +20,10 @@
   transform: translate(2px, 2px);
   box-shadow: var(--shadow-sm);
 }
+.btn:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 3px;
+}
 .btn:disabled {
   background: var(--muted);
   border-color: var(--muted);
@@ -44,7 +48,24 @@
   font-size: 0.8125rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.btnGhost:disabled {
   color: var(--muted);
+  text-decoration: none;
+  cursor: not-allowed;
+}
+
+.formError {
+  border-left: 4px solid var(--alert);
+  background: var(--alert-bg);
+  color: var(--alert);
+  padding: var(--space-2) var(--space-3);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  margin: 0 0 var(--space-4);
 }
 
 .card {
@@ -106,6 +127,12 @@
   outline: 3px solid var(--ink);
   outline-offset: 1px;
 }
+.field input[type='date'] {
+  min-height: 44px; /* Safari renders bare date inputs short */
+}
+.field .formError {
+  margin: 0;
+}
 
 .modalBackdrop {
   position: fixed;
@@ -124,6 +151,24 @@
   padding: var(--space-6);
   max-width: 420px;
   width: 100%;
+}
+.modalTitle {
+  margin-bottom: var(--space-4);
+}
+
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink);
+  text-decoration: none;
+  border-bottom: var(--border-thin);
+  padding: var(--space-1) 0;
 }
 
 .toastHost {
@@ -162,6 +207,8 @@
   padding: var(--space-2) var(--space-3);
   font-weight: 700;
   font-size: 1rem;
+  min-width: 44px;
+  min-height: 44px;
 }
 .stepper span {
   min-width: 40px;

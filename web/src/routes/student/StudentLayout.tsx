@@ -17,9 +17,6 @@ export function StudentLayout() {
         <h1>GroupMatcher</h1>
         <span className="mono-label">student</span>
       </header>
-      <main className={styles.main}>
-        <Outlet />
-      </main>
       <nav className={styles.bottomNav}>
         {TABS.map((t) => (
           <NavLink key={t.to} to={t.to} className={({ isActive }) => (isActive ? 'active' : '')}>
@@ -28,6 +25,9 @@ export function StudentLayout() {
           </NavLink>
         ))}
       </nav>
+      <main className={styles.main}>
+        <Outlet />
+      </main>
     </div>
   )
 }

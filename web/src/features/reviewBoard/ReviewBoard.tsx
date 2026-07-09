@@ -330,8 +330,7 @@ export function ReviewBoard({
         </DragOverlay>
       </DndContext>
 
-      <Modal open={pendingOversize != null}>
-        <h3>⚠ Override constraint?</h3>
+      <Modal open={pendingOversize != null} title="⚠ Override constraint?">
         <p>
           This group will have{' '}
           <strong>

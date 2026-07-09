@@ -34,7 +34,7 @@ export function InstructorLayout() {
         <div className={styles.sidebarFooter}>
           <NavLink to="/i/help">? Help</NavLink>
           <button
-            style={{ background: 'none', border: 'none', textAlign: 'left', fontWeight: 700, padding: 0 }}
+            className={styles.linkButton}
             onClick={() => {
               clearAuth()
               navigate('/')
