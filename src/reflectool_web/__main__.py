@@ -1,5 +1,6 @@
 """`python -m reflectool_web` — run the pilot server with uvicorn."""
 
+import logging
 import os
 from collections.abc import Mapping
 
@@ -16,6 +17,9 @@ def resolve_port(env: Mapping[str, str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    # uvicorn only configures its own loggers; without this, application log
+    # lines (e.g. the password-reset link the pilot operator relays) go nowhere.
+    logging.basicConfig(level=logging.INFO)
     print(f"reflectool: db={os.environ.get('REFLECTOOL_DB', 'state/reflectool.db')}", flush=True)
     uvicorn.run(
         create_app(),
