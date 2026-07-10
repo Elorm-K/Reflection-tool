@@ -10,6 +10,7 @@ export interface EditRequest {
   student_id: string
   to_group: number
   allow_oversize?: boolean
+  allow_low_overlap?: boolean
 }
 
 export const reviewApi = {

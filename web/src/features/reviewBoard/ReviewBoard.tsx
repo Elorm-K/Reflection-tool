@@ -15,50 +15,17 @@ import type { EditRequest } from '../../lib/api/review'
 import type { ReviewBoard as Board, ReviewStudent } from '../../lib/api/types/review'
 import type { Proposal } from '../../lib/api/types/common'
 import type { ApiError } from '../../lib/api/client'
-import { mutualOverlap, perDayDensity } from '../../lib/grid'
+import { perDayDensity } from '../../lib/grid'
 import { Badge, Button, Modal, useToast } from '../../components/ui'
+import { precheckMove } from './precheck'
 import styles from './reviewBoard.module.css'
 
-/* ---------- pure helpers (advisory prechecks; server verdict is authoritative) */
-
-interface Precheck {
-  ok: boolean
+/** A drop that needs explicit instructor confirmation before it is sent. */
+interface PendingOverride {
+  req: EditRequest
   needsOversize: boolean
-  reason: string | null
-}
-
-export function precheckMove(
-  board: Board,
-  studentId: string,
-  toGroup: number,
-): Precheck {
-  const { config, students } = board
-  const target = board.proposal.groups.find((g) => g.group_id === toGroup)
-  if (!target) return { ok: false, needsOversize: false, reason: 'no such group' }
-  if (target.members.includes(studentId))
-    return { ok: false, needsOversize: false, reason: 'already in this group' }
-
-  const source = board.proposal.groups.find((g) => g.members.includes(studentId))
-  if (source && source.members.length - 1 < config.min_size) {
-    return {
-      ok: false,
-      needsOversize: false,
-      reason: `Group ${source.group_id} would drop below ${config.min_size} members.`,
-    }
-  }
-  const newMembers = [...target.members, studentId]
-  const overlap = mutualOverlap(newMembers.map((sid) => students[sid].availability))
-  if (overlap < config.min_overlap) {
-    const name = students[studentId]?.name || studentId
-    return {
-      ok: false,
-      needsOversize: false,
-      reason: `${name}'s schedule does not overlap with this group's meeting time.`,
-    }
-  }
-  if (newMembers.length > config.max_size + 1)
-    return { ok: false, needsOversize: false, reason: `Max is ${config.max_size} (+1 with override).` }
-  return { ok: true, needsOversize: newMembers.length > config.max_size, reason: null }
+  needsLowOverlap: boolean
+  overlap: number
 }
 
 /* ---------- presentational bits ------------------------------------------- */
@@ -171,11 +138,8 @@ export function ReviewBoard({
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
   const [active, setActive] = useState<string | null>(null)
   const [hoverBlocked, setHoverBlocked] = useState<Record<number, string | null>>({})
-  const [pendingOversize, setPendingOversize] = useState<EditRequest | null>(null)
-  const [pendingLive, setPendingLive] = useState<{
-    req: EditRequest
-    needsOversize: boolean
-  } | null>(null)
+  const [pendingOverride, setPendingOverride] = useState<PendingOverride | null>(null)
+  const [pendingLive, setPendingLive] = useState<PendingOverride | null>(null)
 
   const { data: board } = useQuery({
     queryKey: ['reviewBoard', cycleId],
@@ -246,7 +210,10 @@ export function ReviewBoard({
     if (!e.over || !board) return
     const gid = Number(String(e.over.id).replace('group-', ''))
     const check = precheckMove(board, String(e.active.id), gid)
-    setHoverBlocked({ [gid]: check.ok ? null : check.reason })
+    const warning = check.needsLowOverlap
+      ? `Fewer than ${board.config.min_overlap} shared slot(s) — you'll be asked to confirm.`
+      : null
+    setHoverBlocked({ [gid]: check.ok ? warning : check.reason })
   }
 
   function onDragEnd(e: DragEndEvent) {
@@ -267,13 +234,19 @@ export function ReviewBoard({
         toast(`Blocked: ${check.reason} The move was not applied.`, true)
       return
     }
+    const pending: PendingOverride = {
+      req,
+      needsOversize: check.needsOversize,
+      needsLowOverlap: check.needsLowOverlap,
+      overlap: check.overlap,
+    }
     if (live) {
       // Published cycle: always confirm before a live change reaches students.
-      setPendingLive({ req, needsOversize: check.needsOversize })
+      setPendingLive(pending)
       return
     }
-    if (check.needsOversize) {
-      setPendingOversize(req)
+    if (check.needsOversize || check.needsLowOverlap) {
+      setPendingOverride(pending)
       return
     }
     edit.mutate(req)
@@ -375,6 +348,13 @@ export function ReviewBoard({
             oversize override).
           </p>
         )}
+        {pendingLive?.needsLowOverlap && (
+          <p>
+            ⚠ The group would share {pendingLive.overlap} mutually free slot(s) — below the
+            minimum of {board.config.min_overlap}. The group may have no shared meeting time
+            (explicit low-overlap override).
+          </p>
+        )}
         <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
           <Button
             onClick={() => {
@@ -382,6 +362,7 @@ export function ReviewBoard({
                 reassign.mutate({
                   ...pendingLive.req,
                   allow_oversize: pendingLive.needsOversize,
+                  allow_low_overlap: pendingLive.needsLowOverlap,
                 })
               setPendingLive(null)
             }}
@@ -395,26 +376,45 @@ export function ReviewBoard({
         </div>
       </Modal>
 
-      <Modal open={pendingOversize != null} title="⚠ Override constraint?">
-        <p>
-          This group will have{' '}
-          <strong>
-            {(board.proposal.groups.find((g) => g.group_id === pendingOversize?.to_group)?.members
-              .length ?? 0) + 1}{' '}
-            members
-          </strong>{' '}
-          (Max {board.config.max_size}). Have you confirmed this with the students?
-        </p>
+      <Modal open={pendingOverride != null} title="⚠ Override constraint?">
+        {pendingOverride?.needsOversize && (
+          <p>
+            This group will have{' '}
+            <strong>
+              {(board.proposal.groups.find((g) => g.group_id === pendingOverride.req.to_group)
+                ?.members.length ?? 0) + 1}{' '}
+              members
+            </strong>{' '}
+            (Max {board.config.max_size}).
+          </p>
+        )}
+        {pendingOverride?.needsLowOverlap && (
+          <p>
+            <strong>
+              {board.students[pendingOverride.req.student_id]?.name ||
+                pendingOverride.req.student_id}
+            </strong>
+            &rsquo;s schedule shares {pendingOverride.overlap} mutually free slot(s) with this
+            group — below the minimum of {board.config.min_overlap}. The group may have no
+            shared meeting time.
+          </p>
+        )}
+        <p>Have you confirmed this with the students?</p>
         <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
           <Button
             onClick={() => {
-              if (pendingOversize) edit.mutate({ ...pendingOversize, allow_oversize: true })
-              setPendingOversize(null)
+              if (pendingOverride)
+                edit.mutate({
+                  ...pendingOverride.req,
+                  allow_oversize: pendingOverride.needsOversize,
+                  allow_low_overlap: pendingOverride.needsLowOverlap,
+                })
+              setPendingOverride(null)
             }}
           >
             Do it anyway
           </Button>
-          <Button variant="ghost" onClick={() => setPendingOversize(null)}>
+          <Button variant="ghost" onClick={() => setPendingOverride(null)}>
             Cancel
           </Button>
         </div>
