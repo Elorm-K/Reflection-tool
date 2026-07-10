@@ -34,6 +34,27 @@ class MessageBody(BaseModel):
     body: str = Field(min_length=1, max_length=2000)
 
 
+class MeetingBody(BaseModel):
+    label: str
+
+
+def _clean_meeting_label(label: str) -> str:
+    cleaned = label.strip()
+    if not cleaned or len(cleaned) > 120:
+        raise HTTPException(
+            status_code=422,
+            detail="meeting time must be 1-120 characters",
+        )
+    return cleaned
+
+
+def _meeting_out(row: dict | None) -> dict | None:
+    if row is None:
+        return None
+    return {"label": row["label"], "set_by": row["set_by"],
+            "updated_at": row["updated_at"]}
+
+
 def _current_cycle(db: sqlite3.Connection, ctx: dict) -> dict:
     cycle = repo.current_cycle_for_class(db, ctx["class_id"])
     if cycle is None:
@@ -157,6 +178,10 @@ def my_group(
         raise HTTPException(status_code=409, detail="your group is not published yet")
     except KeyError:
         raise HTTPException(status_code=404, detail="you are not part of this cycle")
+    if "group_number" in view:
+        view["chosen_meeting"] = _meeting_out(
+            repo.get_group_meeting(db, cycle["id"], view["group_number"])
+        )
     return student_safe(view)
 
 
@@ -183,16 +208,41 @@ def mark_my_notifications_read(
     return student_safe({"ok": True, "marked": marked})
 
 
-def _published_group_id(db: sqlite3.Connection, ctx: dict) -> tuple[dict, int]:
-    """The student's group id in the published proposal, or 409/404."""
+def _published_group(db: sqlite3.Connection, ctx: dict) -> tuple[dict, dict]:
+    """The student's group in the published proposal, or 409/404."""
     cycle = _current_cycle(db, ctx)
     if not cycle["session_json"] or cycle["status"] != "published":
         raise HTTPException(status_code=409, detail="your group is not published yet")
     session, _ = sessions.load_session(cycle)
     for group in session.proposal["groups"]:
         if ctx["student_ext_id"] in group["members"]:
-            return cycle, group["group_id"]
+            return cycle, group
     raise HTTPException(status_code=404, detail="you are not in a group this cycle")
+
+
+@router.put("/me/group/meeting")
+def set_group_meeting(
+    body: MeetingBody,
+    ctx: dict = Depends(require_student),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    """A group member records the meeting time the group agreed on. Overlay
+    only — the matcher's proposal is never touched. Other members get an
+    in-app notification."""
+    label = _clean_meeting_label(body.label)
+    cycle, group = _published_group(db, ctx)
+    setter = ctx["name"] or ctx["student_ext_id"]
+    row = repo.set_group_meeting(db, cycle["id"], group["group_id"], label, set_by=setter)
+    note = f'{setter} set your group\'s meeting time to "{label}".'
+    student_safe({"body": note})
+    for sid in group["members"]:
+        if sid == ctx["student_ext_id"]:
+            continue
+        enrollment = repo.get_enrollment_for_student(db, ctx["class_id"], sid)
+        if enrollment is not None:
+            repo.add_notification(db, cycle["id"], enrollment["id"],
+                                  kind="meeting-updated", body=note)
+    return student_safe({"ok": True, "chosen_meeting": _meeting_out(row)})
 
 
 def _message_out(m: dict) -> dict:
@@ -211,9 +261,9 @@ def list_group_messages(
     ctx: dict = Depends(require_student),
     db: sqlite3.Connection = Depends(get_db),
 ):
-    cycle, group_id = _published_group_id(db, ctx)
+    cycle, group = _published_group(db, ctx)
     messages = [_message_out(m) for m in
-                repo.list_messages(db, cycle["id"], group_id, since=since)]
+                repo.list_messages(db, cycle["id"], group["group_id"], since=since)]
     return student_safe({"messages": messages})
 
 
@@ -223,8 +273,8 @@ def post_group_message(
     ctx: dict = Depends(require_student),
     db: sqlite3.Connection = Depends(get_db),
 ):
-    cycle, group_id = _published_group_id(db, ctx)
-    message = repo.add_message(db, cycle["id"], group_id, ctx["enrollment_id"],
+    cycle, group = _published_group(db, ctx)
+    message = repo.add_message(db, cycle["id"], group["group_id"], ctx["enrollment_id"],
                                body.body)
     return student_safe(
         _message_out({**message, "sender_id": ctx["student_ext_id"],

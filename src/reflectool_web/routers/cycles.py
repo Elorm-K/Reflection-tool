@@ -231,6 +231,11 @@ def review_board(
         "proposal": session.proposal,
         "students": students,
         "config": sessions.config_out(cycle["config"]),
+        "meetings": {
+            gid: {"label": m["label"], "set_by": m["set_by"],
+                  "updated_at": m["updated_at"]}
+            for gid, m in repo.list_group_meetings(db, cycle["id"]).items()
+        },
     }
 
 
@@ -346,6 +351,49 @@ def reassign_student(
                    detail=f"{body.action} {body.student_id} -> group {body.to_group}"
                           f" notified={notified}")
     return {"proposal": session.proposal, "notified": notified}
+
+
+class MeetingBody(BaseModel):
+    label: str
+
+
+@router.put("/cycles/{cycle_id}/groups/{group_id}/meeting")
+def set_meeting(
+    group_id: int,
+    body: MeetingBody,
+    cycle: dict = Depends(require_owned_cycle),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    """Instructor records/corrects a group's chosen meeting time on a
+    published cycle. Overlay over the matcher's meeting_slots — the proposal
+    itself is never touched. All group members are notified."""
+    label = body.label.strip()
+    if not label or len(label) > 120:
+        raise HTTPException(status_code=422, detail="meeting time must be 1-120 characters")
+    if cycle["status"] != "published":
+        raise HTTPException(
+            status_code=409,
+            detail="meeting times can only be set once the cycle is published",
+        )
+    session, _ = _session_or_404(cycle)
+    group = next((g for g in session.proposal["groups"] if g["group_id"] == group_id), None)
+    if group is None:
+        raise HTTPException(status_code=404, detail=f"no group with id {group_id}")
+    row = repo.set_group_meeting(db, cycle["id"], group_id, label, set_by="instructor")
+    note = f'Your instructor set your group\'s meeting time to "{label}".'
+    student_safe({"body": note})
+    for sid in group["members"]:
+        enrollment = repo.get_enrollment_for_student(db, cycle["class_id"], sid)
+        if enrollment is not None:
+            repo.add_notification(db, cycle["id"], enrollment["id"],
+                                  kind="meeting-updated", body=note)
+    repo.add_audit(db, cycle["id"], actor="instructor", action="meeting-set",
+                   detail=f"group {group_id}: {label}")
+    return {
+        "ok": True,
+        "chosen_meeting": {"label": row["label"], "set_by": row["set_by"],
+                           "updated_at": row["updated_at"]},
+    }
 
 
 @router.post("/cycles/{cycle_id}/approve")

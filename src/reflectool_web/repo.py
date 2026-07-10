@@ -379,6 +379,36 @@ def get_enrollment_for_student(db: sqlite3.Connection, class_id: int,
     ).fetchone())
 
 
+# --- group meetings -----------------------------------------------------------
+
+def set_group_meeting(db: sqlite3.Connection, cycle_id: int, group_id: int,
+                      label: str, set_by: str) -> dict:
+    db.execute(
+        "INSERT INTO group_meetings (cycle_id, group_id, label, set_by)"
+        " VALUES (?, ?, ?, ?)"
+        " ON CONFLICT (cycle_id, group_id) DO UPDATE SET"
+        " label = excluded.label, set_by = excluded.set_by,"
+        " updated_at = datetime('now')",
+        (cycle_id, group_id, label, set_by),
+    )
+    db.commit()
+    return get_group_meeting(db, cycle_id, group_id)
+
+
+def get_group_meeting(db: sqlite3.Connection, cycle_id: int,
+                      group_id: int) -> dict | None:
+    return _row(db.execute(
+        "SELECT * FROM group_meetings WHERE cycle_id = ? AND group_id = ?",
+        (cycle_id, group_id),
+    ).fetchone())
+
+
+def list_group_meetings(db: sqlite3.Connection, cycle_id: int) -> dict[int, dict]:
+    return {r["group_id"]: dict(r) for r in db.execute(
+        "SELECT * FROM group_meetings WHERE cycle_id = ?", (cycle_id,)
+    ).fetchall()}
+
+
 # --- password resets ----------------------------------------------------------
 
 def create_password_reset(db: sqlite3.Connection, instructor_id: int,

@@ -125,6 +125,22 @@ def enrolled(db):
     return {"iid": iid, "cls": cls, "enr": enr, "cyc": cyc}
 
 
+def test_group_meeting_set_get_upsert(db, enrolled):
+    cyc = enrolled["cyc"]
+    assert repo.get_group_meeting(db, cyc["id"], 1) is None
+    repo.set_group_meeting(db, cyc["id"], 1, label="Mon 08:30", set_by="Jane")
+    row = repo.get_group_meeting(db, cyc["id"], 1)
+    assert row["label"] == "Mon 08:30" and row["set_by"] == "Jane"
+    # one row per (cycle, group): setting again replaces
+    repo.set_group_meeting(db, cyc["id"], 1, label="Fridays 7pm, library", set_by="instructor")
+    row = repo.get_group_meeting(db, cyc["id"], 1)
+    assert row["label"] == "Fridays 7pm, library" and row["set_by"] == "instructor"
+    assert db.execute("SELECT COUNT(*) FROM group_meetings").fetchone()[0] == 1
+    # scoped per group and per cycle
+    assert repo.get_group_meeting(db, cyc["id"], 2) is None
+    assert repo.list_group_meetings(db, cyc["id"]) == {1: row}
+
+
 def test_notifications_roundtrip(db, enrolled):
     cyc, enr = enrolled["cyc"], enrolled["enr"]
     assert repo.list_notifications(db, enr["id"]) == []

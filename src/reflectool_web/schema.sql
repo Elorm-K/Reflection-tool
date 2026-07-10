@@ -99,6 +99,19 @@ CREATE TABLE IF NOT EXISTS notifications (
     read_at       TEXT
 );
 
+-- A group's self-chosen meeting time (set by a member or the instructor after
+-- publication). An overlay over the matcher's meeting_slots — never written
+-- into the proposal, so the deterministic grouping stays untouched.
+CREATE TABLE IF NOT EXISTS group_meetings (
+    id         INTEGER PRIMARY KEY,
+    cycle_id   INTEGER NOT NULL REFERENCES cycles(id),
+    group_id   INTEGER NOT NULL,
+    label      TEXT NOT NULL,        -- 'Mon 08:30' or 'Fridays 7pm, library'
+    set_by     TEXT NOT NULL,        -- member name/id, or 'instructor'
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (cycle_id, group_id)
+);
+
 -- Instructor password resets: single-use, 60-minute expiry. Only the sha256
 -- of the token is stored — a DB leak grants no resets.
 CREATE TABLE IF NOT EXISTS password_resets (
