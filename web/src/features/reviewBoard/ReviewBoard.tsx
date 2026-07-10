@@ -12,6 +12,8 @@ import {
 import type { DragEndEvent, DragOverEvent, DragStartEvent } from '@dnd-kit/core'
 import { reviewApi } from '../../lib/api/review'
 import type { EditRequest } from '../../lib/api/review'
+import { instructorApi } from '../../lib/api/instructor'
+import type { ChosenMeeting } from '../../lib/api/types/common'
 import type { ReviewBoard as Board, ReviewStudent } from '../../lib/api/types/review'
 import type { Proposal } from '../../lib/api/types/common'
 import type { ApiError } from '../../lib/api/client'
@@ -90,15 +92,18 @@ function GroupColumn({
   groupId,
   blockedReason,
   editable,
+  onSetMeeting,
 }: {
   board: Board
   groupId: number
   blockedReason: string | null
   editable: boolean
+  onSetMeeting?: () => void
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `group-${groupId}`, disabled: !editable })
   const group = board.proposal.groups.find((g) => g.group_id === groupId)!
   const blocked = isOver && blockedReason != null
+  const meeting: ChosenMeeting | undefined = board.meetings[String(groupId)]
   return (
     <div ref={setNodeRef} className={blocked ? styles.columnBlocked : styles.column}>
       <div className={styles.columnHeader}>
@@ -107,7 +112,19 @@ function GroupColumn({
           {group.members.length}/{board.config.max_size}
         </span>
       </div>
-      <div className={styles.columnMeta}>⏱ {group.meeting_slots.join(', ') || 'no shared slots'}</div>
+      <div className={styles.columnMeta}>
+        ⏱ {group.meeting_slots.join(', ') || 'no shared slots'}
+        {meeting && (
+          <div>
+            📌 {meeting.label} <span title={`set by ${meeting.set_by}`}>({meeting.set_by})</span>
+          </div>
+        )}
+        {onSetMeeting && (
+          <button type="button" className={styles.metaAction} onClick={onSetMeeting}>
+            {meeting ? 'update time' : 'set time'}
+          </button>
+        )}
+      </div>
       <div className={styles.columnBody}>
         {blocked && <div className={styles.conflictCard}>⚠ {blockedReason}</div>}
         {group.members.map((sid) => (
@@ -140,6 +157,8 @@ export function ReviewBoard({
   const [hoverBlocked, setHoverBlocked] = useState<Record<number, string | null>>({})
   const [pendingOverride, setPendingOverride] = useState<PendingOverride | null>(null)
   const [pendingLive, setPendingLive] = useState<PendingOverride | null>(null)
+  const [meetingFor, setMeetingFor] = useState<number | null>(null)
+  const [meetingDraft, setMeetingDraft] = useState('')
 
   const { data: board } = useQuery({
     queryKey: ['reviewBoard', cycleId],
@@ -186,6 +205,19 @@ export function ReviewBoard({
       if (prev) queryClient.setQueryData(['reviewBoard', cycleId], { ...prev, proposal: resp.proposal })
       queryClient.invalidateQueries({ queryKey: ['reviewBoard', cycleId] })
       toast(`Reassigned — ${resp.notified} students notified`)
+    },
+  })
+
+  const setMeeting = useMutation({
+    mutationFn: ({ groupId, label }: { groupId: number; label: string }) =>
+      instructorApi.setGroupMeeting(cycleId, groupId, label),
+    onError: (err) => {
+      toast((err as unknown as ApiError).detail ?? 'could not set the meeting time', true)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reviewBoard', cycleId] })
+      setMeetingFor(null)
+      toast('Meeting time saved — the group has been notified')
     },
   })
 
@@ -315,6 +347,14 @@ export function ReviewBoard({
                 groupId={g.group_id}
                 blockedReason={hoverBlocked[g.group_id] ?? null}
                 editable={editable}
+                onSetMeeting={
+                  live
+                    ? () => {
+                        setMeetingDraft(board.meetings[String(g.group_id)]?.label ?? '')
+                        setMeetingFor(g.group_id)
+                      }
+                    : undefined
+                }
               />
             ))}
           </div>
@@ -330,6 +370,42 @@ export function ReviewBoard({
           )}
         </DragOverlay>
       </DndContext>
+
+      <Modal
+        open={meetingFor != null}
+        title={`Set meeting time — Group ${meetingFor ?? ''}`}
+        onClose={() => setMeetingFor(null)}
+      >
+        <p>
+          The group's members will be notified of the new time. This does not change the
+          matcher's proposal.
+        </p>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (meetingFor != null && meetingDraft.trim())
+              setMeeting.mutate({ groupId: meetingFor, label: meetingDraft.trim() })
+          }}
+        >
+          <div style={{ margin: '12px 0' }}>
+            <input
+              value={meetingDraft}
+              onChange={(e) => setMeetingDraft(e.target.value)}
+              maxLength={120}
+              placeholder="e.g. Mon 08:30 or Fridays 7pm, library"
+              style={{ width: '100%', border: 'var(--border)', padding: 12 }}
+            />
+          </div>
+          <div style={{ display: 'flex', gap: 12 }}>
+            <Button type="submit" disabled={setMeeting.isPending || !meetingDraft.trim()}>
+              Save &amp; notify group
+            </Button>
+            <Button type="button" variant="ghost" onClick={() => setMeetingFor(null)}>
+              Cancel
+            </Button>
+          </div>
+        </form>
+      </Modal>
 
       <Modal
         open={pendingLive != null}

@@ -3,12 +3,98 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { studentApi } from '../../lib/api/student'
 import type { ApiError } from '../../lib/api/client'
 import type { StudentGroupView } from '../../lib/api/types/student'
-import { Badge, Button, Card, useToast } from '../../components/ui'
+import { Badge, Button, Card, Field, useToast } from '../../components/ui'
 import styles from './student.module.css'
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/)
   return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase() || '??'
+}
+
+function MeetingSection({ group }: { group: StudentGroupView }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const toast = useToast()
+  const queryClient = useQueryClient()
+  const save = useMutation({
+    mutationFn: (label: string) => studentApi.setGroupMeeting(label),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['myGroup'] })
+      setEditing(false)
+      toast('Meeting time saved — the rest of your group has been notified')
+    },
+    onError: (err) =>
+      toast((err as unknown as ApiError).detail ?? 'could not save the meeting time', true),
+  })
+  const chosen = group.chosen_meeting
+  const suggested = group.meeting_slots.join(', ')
+
+  return (
+    <>
+      <div className={styles.meetingCard}>
+        <span aria-hidden>🗓</span>
+        <div>
+          <div className="mono-label">
+            {chosen ? `Meeting time · set by ${chosen.set_by}` : 'Meeting time'}
+          </div>
+          <div className={styles.meetingTime}>
+            {chosen
+              ? chosen.label
+              : suggested || 'No shared time yet — agree on one in chat, then set it here.'}
+          </div>
+          {chosen && suggested && chosen.label !== suggested && (
+            <div className="mono-label">Matcher suggestion: {suggested}</div>
+          )}
+        </div>
+        <Button
+          variant="ghost"
+          style={{ marginLeft: 'auto', flexShrink: 0 }}
+          onClick={() => {
+            setDraft(chosen?.label ?? '')
+            setEditing((v) => !v)
+          }}
+        >
+          {editing ? 'Close' : chosen ? 'Update time' : 'Set time'}
+        </Button>
+      </div>
+
+      {editing && (
+        <form
+          className={styles.meetingForm}
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (draft.trim()) save.mutate(draft.trim())
+          }}
+        >
+          {group.meeting_slots.length > 0 && (
+            <div className={styles.slotChips}>
+              {group.meeting_slots.map((s) => (
+                <Button
+                  key={s}
+                  type="button"
+                  variant={draft === s ? 'primary' : 'secondary'}
+                  onClick={() => setDraft(s)}
+                >
+                  {s}
+                </Button>
+              ))}
+            </div>
+          )}
+          <Field label="Meeting time — pick a slot above or type your own">
+            <input
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              maxLength={120}
+              placeholder="e.g. Fridays 7pm, library"
+            />
+          </Field>
+          <Button type="submit" disabled={save.isPending || !draft.trim()}>
+            Save &amp; notify group
+          </Button>
+        </form>
+      )}
+    </>
+  )
 }
 
 function NotificationBanner() {
@@ -141,13 +227,7 @@ export function MyGroupPage() {
         </p>
       </div>
 
-      <div className={styles.meetingCard}>
-        <span aria-hidden>🗓</span>
-        <div>
-          <div className="mono-label">Meeting time</div>
-          <div className={styles.meetingTime}>{group.meeting_slots.join(', ')}</div>
-        </div>
-      </div>
+      <MeetingSection group={group} />
 
       <div className="mono-label" style={{ marginBottom: 8 }}>
         Group members ({group.members.length})

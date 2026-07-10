@@ -1,5 +1,5 @@
 import { api } from './client'
-import type { MatchConfig, MessagesResponse, Proposal } from './types/common'
+import type { ChosenMeeting, MatchConfig, MessagesResponse, Proposal } from './types/common'
 import type {
   AuditEntry,
   ClassInfo,
@@ -67,6 +67,13 @@ export const instructorApi = {
 
   notifications: (cycleId: number) =>
     api<Record<string, unknown>>('GET', `/api/cycles/${cycleId}/notifications`),
+
+  setGroupMeeting: (cycleId: number, groupId: number, label: string) =>
+    api<{ ok: boolean; chosen_meeting: ChosenMeeting }>(
+      'PUT',
+      `/api/cycles/${cycleId}/groups/${groupId}/meeting`,
+      { label },
+    ),
 
   explain: (cycleId: number, studentId: string) =>
     api<ExplainPlaced | ExplainUnplaced>('GET', `/api/cycles/${cycleId}/explain/${studentId}`),

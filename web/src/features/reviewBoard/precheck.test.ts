@@ -19,6 +19,7 @@ function makeBoard(overrides: { members1?: string[]; members2?: string[] } = {})
   for (const sid of members1) students[sid] = student(sid, early)
   for (const sid of members2) students[sid] = student(sid, late)
   return {
+    meetings: {},
     config: {
       target_size: 4,
       min_size: 3,

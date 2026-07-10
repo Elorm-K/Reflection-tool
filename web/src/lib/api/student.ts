@@ -1,4 +1,5 @@
 import { api } from './client'
+import type { ChosenMeeting } from './types/common'
 import type {
   JoinResponse,
   MessagesResponse,
@@ -27,6 +28,11 @@ export const studentApi = {
 
   sendMessage: (body: string) =>
     api<{ id: number }>('POST', '/api/me/group/messages', { body }),
+
+  setGroupMeeting: (label: string) =>
+    api<{ ok: boolean; chosen_meeting: ChosenMeeting }>('PUT', '/api/me/group/meeting', {
+      label,
+    }),
 
   notifications: () => api<NotificationsResponse>('GET', '/api/me/notifications'),
 

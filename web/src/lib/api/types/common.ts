@@ -48,3 +48,11 @@ export interface ChatMessage {
 export interface MessagesResponse {
   messages: ChatMessage[]
 }
+
+/* A group's self-chosen meeting time — an overlay over the matcher's
+ * meeting_slots, set by a group member or the instructor after publication. */
+export interface ChosenMeeting {
+  label: string
+  set_by: string
+  updated_at: string
+}

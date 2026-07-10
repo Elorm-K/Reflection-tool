@@ -5,7 +5,7 @@
  * add demographic fields here — they exist only in types/review.ts, which
  * student routes are lint-forbidden to import. */
 
-import type { ChatMessage, GridConfig, LifecycleStatus } from './common'
+import type { ChatMessage, ChosenMeeting, GridConfig, LifecycleStatus } from './common'
 
 export interface JoinResponse {
   token: string
@@ -31,6 +31,7 @@ export interface StudentGroupView {
   group_number: number
   members: string[]
   meeting_slots: string[]
+  chosen_meeting: ChosenMeeting | null
 }
 
 export interface StudentUnplacedView {
@@ -43,7 +44,7 @@ export interface MessagesResponse {
 
 export interface StudentNotification {
   id: number
-  kind: 'group-changed' | 'group-updated'
+  kind: 'group-changed' | 'group-updated' | 'meeting-updated'
   body: string
   created_at: string
   read_at: string | null

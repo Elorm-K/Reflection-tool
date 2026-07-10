@@ -6,7 +6,7 @@
  * never persisted client-side. Importing this module from student routes
  * or shared UI is forbidden by the ESLint no-restricted-imports boundary. */
 
-import type { MatchConfig, Proposal } from './common'
+import type { ChosenMeeting, MatchConfig, Proposal } from './common'
 
 export interface ReviewStudent {
   name: string
@@ -20,6 +20,7 @@ export interface ReviewBoard {
   proposal: Proposal
   students: Record<string, ReviewStudent>
   config: MatchConfig
+  meetings: Record<string, ChosenMeeting>
 }
 
 export interface GroupComposition {
