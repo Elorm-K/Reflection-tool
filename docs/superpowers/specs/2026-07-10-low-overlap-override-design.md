@@ -102,8 +102,9 @@ TDD throughout (project convention):
 
 ## Out of scope
 
-- Adding the oversize audit suffix to `assign` entries (pre-existing gap,
-  unchanged).
+- ~~Adding the oversize audit suffix to `assign` entries~~ — implemented after
+  all: the shared `_override_suffix` helper annotates both overrides on both
+  `move` and `assign` (audit completeness, invariant 4).
 - Any change to matcher scoring or publish-time notification payloads
   (`notify.py` returns structured slot lists, no prose to fix).
 - Persisted `proposal["warnings"]` entries for overridden groups (the board
