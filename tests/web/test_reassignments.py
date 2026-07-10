@@ -222,3 +222,66 @@ def test_assign_unplaced_after_publish(client):
         (unplaced_sid,),
     ).fetchall()]
     assert "group-changed" in kinds
+
+
+# --- low-overlap override ---------------------------------------------------------
+
+@pytest.fixture()
+def published_split(client):
+    """Like `published`, but two disjoint availability blocks (4 early, 4 late):
+    any cross move violates min_overlap only. Published, student tokens kept."""
+    headers = register_and_login(client)
+    cls = make_class(
+        client, headers,
+        roster=[{"student_id": f"s{i:02d}", "name": f"Student {i}"} for i in range(1, 9)],
+    )
+    cycle = make_cycle(client, headers, cls["id"],
+                       config={"grid": SMALL_GRID, "min_overlap": 1})
+    students = {}
+    for i in range(1, 9):
+        sid = f"s{i:02d}"
+        students[sid] = join(client, cls, sid)
+        slots = [1, 1, 0, 0] if i <= 4 else [0, 0, 1, 1]
+        client.put("/api/me/availability", json={"slots": slots},
+                   headers=students[sid])
+    client.post(f"/api/cycles/{cycle['id']}/match", headers=headers)
+    assert client.get(f"/api/cycles/{cycle['id']}/review-board",
+                      headers=headers).status_code == 200
+    assert client.post(f"/api/cycles/{cycle['id']}/approve",
+                       headers=headers).status_code == 200
+    assert client.post(f"/api/cycles/{cycle['id']}/publish",
+                       headers=headers).status_code == 200
+    proposal = client.get(f"/api/cycles/{cycle['id']}/proposal", headers=headers).json()
+    return {"headers": headers, "cls": cls, "cycle": cycle,
+            "proposal": proposal, "students": students}
+
+
+def test_live_low_overlap_rejected_without_flag(client, published_split):
+    move = first_move(published_split)
+    resp = reassign(client, published_split, {**move, "confirm": True})
+    assert resp.status_code == 422
+    assert "min_overlap" in resp.json()["detail"]
+
+
+def test_live_low_overlap_applies_with_flag_and_safe_notification(client, published_split):
+    move = first_move(published_split)
+    resp = reassign(client, published_split,
+                    {**move, "confirm": True, "allow_low_overlap": True})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    target = next(g for g in body["proposal"]["groups"]
+                  if g["group_id"] == move["to_group"])
+    assert move["student_id"] in target["members"]
+    assert target["meeting_slots"] == []
+    assert body["notified"] >= 1
+
+    # the moved student's notification says there's no shared time yet —
+    # never an empty "New meeting time: ." and never demographics
+    notes = client.get("/api/me/notifications",
+                       headers=published_split["students"][move["student_id"]]).json()
+    note = notes["notifications"][0]
+    assert note["kind"] == "group-changed"
+    assert "does not yet have a shared meeting time" in note["body"]
+    assert "New meeting time: ." not in note["body"]
+    assert "gender" not in note["body"].lower()
+    assert "disability" not in note["body"].lower()
