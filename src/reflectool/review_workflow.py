@@ -97,7 +97,12 @@ def composition_view(session: Session) -> dict:
     return {"groups": groups, "unplaced": session.proposal["unplaced"], "warnings": session.proposal["warnings"]}
 
 
-def _validate_group(session: Session, members: list[Student], allow_oversize: bool) -> None:
+def _validate_group(
+    session: Session,
+    members: list[Student],
+    allow_oversize: bool,
+    allow_low_overlap: bool = False,
+) -> None:
     config = session.config
     max_size = config.max_size + 1 if allow_oversize else config.max_size
     if not (config.min_size <= len(members) <= max_size):
@@ -106,10 +111,22 @@ def _validate_group(session: Session, members: list[Student], allow_oversize: bo
             f"[{config.min_size}, {config.max_size}]"
             + ("" if allow_oversize else " (pass allow_oversize for an explicit instructor override)")
         )
-    if len(group_overlap_slots(members)) < config.min_overlap:
+    if len(group_overlap_slots(members)) < config.min_overlap and not allow_low_overlap:
         raise InvalidEdit(
             f"group would share fewer than min_overlap={config.min_overlap} mutually free slots"
+            " (pass allow_low_overlap for an explicit instructor override)"
         )
+
+
+def _override_suffix(session: Session, members: list[Student],
+                     allow_oversize: bool, allow_low_overlap: bool) -> str:
+    """Audit-trail annotation for constraints the instructor explicitly overrode."""
+    suffix = ""
+    if allow_oversize and len(members) > session.config.max_size:
+        suffix += " [oversize override]"
+    if allow_low_overlap and len(group_overlap_slots(members)) < session.config.min_overlap:
+        suffix += " [low-overlap override]"
+    return suffix
 
 
 def _refresh_group(session: Session, group: dict) -> None:
@@ -151,6 +168,7 @@ def _apply_edit_inner(session: Session, edit: dict, live: bool) -> dict:
     student_id = edit.get("student_id")
     to_group = edit.get("to_group")
     allow_oversize = bool(edit.get("allow_oversize"))
+    allow_low_overlap = bool(edit.get("allow_low_overlap"))
     student = session.student(student_id)
     groups = session.proposal["groups"]
     target = next((g for g in groups if g["group_id"] == to_group), None)
@@ -169,26 +187,29 @@ def _apply_edit_inner(session: Session, edit: dict, live: bool) -> dict:
         new_source = [session.student(sid) for sid in source["members"] if sid != student_id]
         new_target = [session.student(sid) for sid in target["members"]] + [student]
         _validate_group(session, new_source, allow_oversize=False)
-        _validate_group(session, new_target, allow_oversize)
+        _validate_group(session, new_target, allow_oversize, allow_low_overlap)
         source["members"] = [sid for sid in source["members"] if sid != student_id]
         target["members"] = sorted(target["members"] + [student_id])
         _refresh_group(session, source)
         _refresh_group(session, target)
         session.audit_log.append(
             f"{prefix}move {student_id}: group {source['group_id']} -> {to_group}"
-            + (" [oversize override]" if allow_oversize and len(target["members"]) > session.config.max_size else "")
+            + _override_suffix(session, new_target, allow_oversize, allow_low_overlap)
         )
     elif action == "assign":
         if not any(u["student_id"] == student_id for u in session.proposal["unplaced"]):
             raise InvalidEdit(f"{student_id} is not on the unplaced list")
         new_target = [session.student(sid) for sid in target["members"]] + [student]
-        _validate_group(session, new_target, allow_oversize)
+        _validate_group(session, new_target, allow_oversize, allow_low_overlap)
         target["members"] = sorted(target["members"] + [student_id])
         session.proposal["unplaced"] = [
             u for u in session.proposal["unplaced"] if u["student_id"] != student_id
         ]
         _refresh_group(session, target)
-        session.audit_log.append(f"{prefix}assign unplaced {student_id} -> group {to_group}")
+        session.audit_log.append(
+            f"{prefix}assign unplaced {student_id} -> group {to_group}"
+            + _override_suffix(session, new_target, allow_oversize, allow_low_overlap)
+        )
     else:
         raise InvalidEdit(f"unknown edit action: {action!r}")
     assert_no_demographics(session.proposal)
