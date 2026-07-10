@@ -53,6 +53,7 @@ class EditBody(BaseModel):
     student_id: str
     to_group: int
     allow_oversize: bool = False
+    allow_low_overlap: bool = False
 
 
 class ReassignmentBody(BaseModel):
@@ -60,6 +61,7 @@ class ReassignmentBody(BaseModel):
     student_id: str
     to_group: int
     allow_oversize: bool = False
+    allow_low_overlap: bool = False
     # Server-enforced: groups are live, so the instructor must confirm
     # explicitly — a UI dialog alone would be bypassable by any API client.
     confirm: bool = False
@@ -281,12 +283,14 @@ def _notify_reassignment(db: sqlite3.Connection, cycle: dict, session: Session,
     groups = {g["group_id"]: g for g in session.proposal["groups"]}
     target = groups[summary["to_group"]]
     slots = ", ".join(target["meeting_slots"])
+    no_time = (" Your group does not yet have a shared meeting time —"
+               " your instructor will help coordinate.")
     if summary["action"] == "move":
         moved_body = (f"Your instructor moved you to Group {target['group_id']}."
-                      f" New meeting time: {slots}.")
+                      + (f" New meeting time: {slots}." if slots else no_time))
     else:
         moved_body = (f"You have been assigned to Group {target['group_id']}."
-                      f" Meeting time: {slots}.")
+                      + (f" Meeting time: {slots}." if slots else no_time))
     member_body = ("Your group's membership was updated by your instructor."
                    " Check My Group for the current members and meeting time.")
 

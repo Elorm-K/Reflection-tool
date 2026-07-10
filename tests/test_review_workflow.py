@@ -134,6 +134,35 @@ class TestApplyEdit:
         assert len(target["members"]) == 6
         assert any("oversize" in entry for entry in session.audit_log)
 
+    def test_low_overlap_rejection_mentions_override_hint(self):
+        # Same setup as test_move_breaking_min_overlap_rejected: s01 shares no
+        # slots with the other group, s07 keeps the source at min_size.
+        session = make_session(extra=[make_student("s07", [1, 1, 1, 1], "man", "none")])
+        other = next(g for g in session.proposal["groups"] if "s01" not in g["members"])
+        with pytest.raises(InvalidEdit, match="allow_low_overlap"):
+            apply_edit(session, {"action": "move", "student_id": "s01", "to_group": other["group_id"]})
+
+    def test_low_overlap_allowed_with_explicit_override_and_logged(self):
+        session = make_session(extra=[make_student("s07", [1, 1, 1, 1], "man", "none")])
+        other = next(g for g in session.proposal["groups"] if "s01" not in g["members"])
+        apply_edit(
+            session,
+            {"action": "move", "student_id": "s01", "to_group": other["group_id"],
+             "allow_low_overlap": True},
+        )
+        target = next(g for g in session.proposal["groups"] if g["group_id"] == other["group_id"])
+        assert "s01" in target["members"]
+        # no mutually-free slot -> surfaced as an empty slot list, never invented
+        assert target["meeting_slots"] == []
+        assert any("low-overlap override" in entry for entry in session.audit_log)
+
+    def test_low_overlap_override_does_not_bypass_size_bounds(self):
+        session = make_session()
+        # any move out of a size-3 group still violates min_size, flag or not
+        with pytest.raises(InvalidEdit, match="size"):
+            apply_edit(session, {"action": "move", "student_id": "s06", "to_group": 1,
+                                 "allow_low_overlap": True})
+
     def test_assign_unplaced_student(self):
         session = make_session(extra=[make_student("s99", [0, 1, 1, 0])])
         # s99 shares only 1 slot with everyone-groups? ensure they're unplaced first

@@ -135,6 +135,7 @@ def cmd_edit(args) -> int:
             "student_id": args.student,
             "to_group": args.to_group,
             "allow_oversize": args.allow_oversize,
+            "allow_low_overlap": args.allow_low_overlap,
         },
     )
     _save_session(args.state, session, raw_students)
@@ -228,6 +229,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--student", required=True)
     p.add_argument("--to-group", required=True, type=int, dest="to_group")
     p.add_argument("--allow-oversize", action="store_true", dest="allow_oversize")
+    p.add_argument("--allow-low-overlap", action="store_true", dest="allow_low_overlap")
     p.set_defaults(fn=cmd_edit)
 
     p = sub.add_parser("approve", help="proposed -> approved")
