@@ -169,3 +169,51 @@ def test_assign_without_overlap_relays_constraint(client):
     )
     assert resp.status_code == 422
     assert "overlap" in resp.json()["detail"].lower()
+
+
+# --- low-overlap override ---------------------------------------------------------
+
+@pytest.fixture()
+def split(client):
+    """Eight students in two disjoint availability blocks -> two groups of four
+    with no cross overlap; any cross move violates min_overlap only."""
+    headers = register_and_login(client)
+    cls = make_class(
+        client, headers,
+        roster=[{"student_id": f"s{i:02d}", "name": f"S{i}"} for i in range(1, 9)],
+    )
+    cycle = make_cycle(client, headers, cls["id"],
+                       config={"grid": SMALL_GRID, "min_overlap": 1})
+    for i in range(1, 9):
+        s = join(client, cls, f"s{i:02d}")
+        slots = [1, 1, 0, 0] if i <= 4 else [0, 0, 1, 1]
+        client.put("/api/me/availability", json={"slots": slots}, headers=s)
+    proposal = client.post(f"/api/cycles/{cycle['id']}/match", headers=headers).json()
+    assert sorted(len(g["members"]) for g in proposal["groups"]) == [4, 4]
+    return {"headers": headers, "cls": cls, "cycle": cycle, "proposal": proposal}
+
+
+def cross_move(split):
+    """s from group A -> group B: source stays at min_size, zero shared slots."""
+    groups = split["proposal"]["groups"]
+    return {"action": "move", "student_id": groups[0]["members"][0],
+            "to_group": groups[1]["group_id"]}
+
+
+def test_low_overlap_edit_rejected_without_flag(client, split):
+    resp = client.post(f"/api/cycles/{split['cycle']['id']}/edits",
+                       json=cross_move(split), headers=split["headers"])
+    assert resp.status_code == 422
+    assert "min_overlap" in resp.json()["detail"]
+    assert "allow_low_overlap" in resp.json()["detail"]
+
+
+def test_low_overlap_edit_applies_with_flag(client, split):
+    move = cross_move(split)
+    resp = client.post(f"/api/cycles/{split['cycle']['id']}/edits",
+                       json={**move, "allow_low_overlap": True},
+                       headers=split["headers"])
+    assert resp.status_code == 200, resp.text
+    target = next(g for g in resp.json()["groups"] if g["group_id"] == move["to_group"])
+    assert move["student_id"] in target["members"]
+    assert target["meeting_slots"] == []  # surfaced, never invented

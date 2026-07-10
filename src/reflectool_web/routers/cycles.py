@@ -53,6 +53,7 @@ class EditBody(BaseModel):
     student_id: str
     to_group: int
     allow_oversize: bool = False
+    allow_low_overlap: bool = False
 
 
 class ReassignmentBody(BaseModel):
