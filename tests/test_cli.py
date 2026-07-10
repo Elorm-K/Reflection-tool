@@ -82,6 +82,36 @@ class TestCli:
         code, out = run(capsys, "edit", "--state", state, "--action", "move", "--student", "s01", "--to-group", "2")
         assert code == 1
 
+    def test_edit_low_overlap_override_flag(self, tmp_path, capsys):
+        # Two availability blocks: group 1 = s01..s04 (early), group 2 = s05..s07 (late).
+        # Moving s01 -> group 2 keeps the source at min_size but shares 0 slots.
+        roster = {
+            "config": ROSTER["config"],
+            "students": [
+                {"id": f"s{i:02d}", "name": f"P{i}",
+                 "availability": [1, 1, 0, 0] if i <= 4 else [0, 0, 1, 1],
+                 "gender": "man", "disability": "none"}
+                for i in range(1, 8)
+            ],
+        }
+        roster_path = tmp_path / "roster.json"
+        roster_path.write_text(json.dumps(roster))
+        state = tmp_path / "session.json"
+        run(capsys, "match", "--roster", roster_path, "--state", state)
+
+        code, out = run(capsys, "edit", "--state", state, "--action", "move",
+                        "--student", "s01", "--to-group", "2")
+        assert code == 1
+        assert "allow_low_overlap" in out  # rejection names the override
+
+        code, out = run(capsys, "edit", "--state", state, "--action", "move",
+                        "--student", "s01", "--to-group", "2", "--allow-low-overlap")
+        assert code == 0
+        proposal = json.loads(out)
+        target = next(g for g in proposal["groups"] if g["group_id"] == 2)
+        assert "s01" in target["members"]
+        assert target["meeting_slots"] == []
+
     def test_student_view_before_publish_fails(self, paths, capsys):
         roster, state = paths
         run(capsys, "match", "--roster", roster, "--state", state)
