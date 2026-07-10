@@ -5,7 +5,7 @@ import { studentApi } from '../../lib/api/student'
 import type { ApiError } from '../../lib/api/client'
 import { AvailabilityGrid } from '../../features/availability/AvailabilityGrid'
 import gridStyles from '../../features/availability/availability.module.css'
-import { Button, useToast } from '../../components/ui'
+import { BackLink, Badge, Button, useToast } from '../../components/ui'
 import styles from './student.module.css'
 
 export function AvailabilityPage() {
@@ -37,12 +37,18 @@ export function AvailabilityPage() {
 
   return (
     <>
+      <BackLink to="/join">Rejoin with a different code</BackLink>
       <h2 className={styles.pageTitle}>✎ Paint your free times</h2>
       <p className={styles.pageIntro}>
         Tap or drag to select your availability between {me.cycle.grid.start} and{' '}
         {me.cycle.grid.end}.
         {me.availability_submitted && ' You already submitted — painting again replaces it.'}
       </p>
+      {me.cycle.deadline && (
+        <p style={{ margin: '0 0 16px' }}>
+          <Badge variant="outline">Deadline {me.cycle.deadline}</Badge>
+        </p>
+      )}
       {closed ? (
         <p>
           Submissions are closed for this cycle

@@ -11,7 +11,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { instructorApi } from '../../lib/api/instructor'
 import type { ApiError } from '../../lib/api/client'
-import { Badge, Button, Card, NumberStepper, useToast } from '../../components/ui'
+import { BackLink, Badge, Button, Card, NumberStepper, useToast } from '../../components/ui'
 import { DAY_NAMES } from '../../lib/grid'
 import { useClassCycle } from './useClassCycle'
 import styles from './instructor.module.css'
@@ -101,6 +101,7 @@ export function ConfigPage() {
 
   return (
     <>
+      <BackLink to={`/i/classes/${classId}`}>Overview</BackLink>
       <h2 className={styles.pageTitle}>Instructor Configuration</h2>
       <p className={styles.pageIntro}>
         Define the core parameters for the matching algorithm. Priority order is a strict

@@ -26,4 +26,9 @@
   --space-7: 48px;
 
   --radius: 0px; /* brutalism: no rounding */
+
+  --focus-ring: 3px solid var(--ink);
 }
+
+/* breakpoint: 768px — CSS variables can't be used in media queries,
+   keep this value in sync across all *.module.css files. */

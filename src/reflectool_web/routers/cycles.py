@@ -29,6 +29,7 @@ from reflectool.review_workflow import (
     InvalidEdit,
     Session,
     apply_edit,
+    apply_live_edit,
     approve as workflow_approve,
     composition_view,
     publish as workflow_publish,
@@ -36,6 +37,7 @@ from reflectool.review_workflow import (
 
 from .. import repo, sessions
 from ..auth import get_db, require_instructor, require_owned_class
+from ..privacy import student_safe
 
 router = APIRouter(prefix="/api")
 
@@ -51,6 +53,16 @@ class EditBody(BaseModel):
     student_id: str
     to_group: int
     allow_oversize: bool = False
+
+
+class ReassignmentBody(BaseModel):
+    action: Literal["move", "assign"]
+    student_id: str
+    to_group: int
+    allow_oversize: bool = False
+    # Server-enforced: groups are live, so the instructor must confirm
+    # explicitly — a UI dialog alone would be bypassable by any API client.
+    confirm: bool = False
 
 
 def _session_or_404(cycle: dict) -> tuple[Session, list[dict]]:
@@ -254,6 +266,82 @@ def edit_proposal(
     repo.add_audit(db, cycle["id"], actor="instructor", action="edit",
                    detail=f"{body.action} {body.student_id} -> group {body.to_group}")
     return session.proposal
+
+
+def _notify_reassignment(db: sqlite3.Connection, cycle: dict, session: Session,
+                         summary: dict) -> int:
+    """Record in-app notifications (and inactive email records) for everyone a
+    live reassignment touches: the moved/assigned student plus all current
+    members of the source and target groups — a move can change a group's
+    meeting time, and silent changes are never acceptable (invariant 4).
+
+    Bodies are built exclusively from proposal data (group ids, meeting slots)
+    and pass student_safe() before they are written anywhere."""
+    student_id = summary["student_id"]
+    groups = {g["group_id"]: g for g in session.proposal["groups"]}
+    target = groups[summary["to_group"]]
+    slots = ", ".join(target["meeting_slots"])
+    if summary["action"] == "move":
+        moved_body = (f"Your instructor moved you to Group {target['group_id']}."
+                      f" New meeting time: {slots}.")
+    else:
+        moved_body = (f"You have been assigned to Group {target['group_id']}."
+                      f" Meeting time: {slots}.")
+    member_body = ("Your group's membership was updated by your instructor."
+                   " Check My Group for the current members and meeting time.")
+
+    affected = {student_id: ("group-changed", moved_body)}
+    member_ids = set(target["members"])
+    if summary["from_group"] is not None:
+        member_ids |= set(groups[summary["from_group"]]["members"])
+    for sid in member_ids - {student_id}:
+        affected[sid] = ("group-updated", member_body)
+
+    notified = 0
+    for sid, (kind, body) in affected.items():
+        student_safe({"body": body})
+        enrollment = repo.get_enrollment_for_student(db, cycle["class_id"], sid)
+        if enrollment is None:
+            continue  # on the proposal but never claimed a seat — nothing to notify
+        repo.add_notification(db, cycle["id"], enrollment["id"], kind=kind, body=body)
+        repo.add_outbox_email(db, kind=kind, subject="Your discussion group changed",
+                              body=body, enrollment_id=enrollment["id"])
+        notified += 1
+    return notified
+
+
+@router.post("/cycles/{cycle_id}/reassignments")
+def reassign_student(
+    body: ReassignmentBody,
+    cycle: dict = Depends(require_owned_cycle),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    """Move/assign a student on a *published* cycle. Requires confirm=true,
+    re-validates the hard constraints, and notifies every affected student.
+    Does not touch proposal_rev/reviewed_rev — the approve gate is behind us."""
+    if not body.confirm:
+        raise HTTPException(
+            status_code=422,
+            detail="explicit confirmation required — this cycle is published and"
+            " groups are live; resend with confirm=true",
+        )
+    session, raw_students = _session_or_404(cycle)
+    edit = body.model_dump(exclude={"confirm"})
+    try:
+        summary = apply_live_edit(session, edit)
+    except InvalidEdit as exc:
+        # Relay the exact violated constraint; never force the edit through.
+        raise HTTPException(status_code=422, detail=str(exc))
+    except IllegalTransition as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"unknown student: {body.student_id}")
+    sessions.save_session(db, cycle["id"], session, raw_students)
+    notified = _notify_reassignment(db, cycle, session, summary)
+    repo.add_audit(db, cycle["id"], actor="instructor", action="reassign",
+                   detail=f"{body.action} {body.student_id} -> group {body.to_group}"
+                          f" notified={notified}")
+    return {"proposal": session.proposal, "notified": notified}
 
 
 @router.post("/cycles/{cycle_id}/approve")

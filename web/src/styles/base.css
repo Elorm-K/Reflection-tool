@@ -33,6 +33,14 @@ a {
   color: var(--ink);
 }
 
+:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
 .mono-label {
   font-family: var(--font-mono);
   font-size: 0.6875rem;

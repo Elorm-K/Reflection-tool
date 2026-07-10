@@ -8,6 +8,8 @@ import { MyGroupPage } from './routes/student/MyGroupPage'
 import { StubPage } from './routes/student/StubPage'
 import { InstructorLayout } from './routes/instructor/InstructorLayout'
 import { LoginPage } from './routes/instructor/LoginPage'
+import { ForgotPasswordPage } from './routes/instructor/ForgotPasswordPage'
+import { ResetPasswordPage } from './routes/instructor/ResetPasswordPage'
 import { LandingPage } from './routes/instructor/LandingPage'
 import { ClassesPage } from './routes/instructor/ClassesPage'
 import { DashboardPage } from './routes/instructor/DashboardPage'
@@ -29,6 +31,8 @@ export default function App() {
       <Route path="/" element={<Home />} />
       <Route path="/join" element={<JoinPage />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
 
       <Route path="/s" element={<StudentLayout />}>
         <Route index element={<Navigate to="availability" replace />} />

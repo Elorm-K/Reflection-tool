@@ -158,6 +158,8 @@ def reset_claim(db: sqlite3.Connection, class_id: int, student_ext_id: str) -> b
         db.execute("DELETE FROM auth_tokens WHERE enrollment_id = ?", (row["id"],))
         db.execute("DELETE FROM messages WHERE enrollment_id = ?", (row["id"],))
         db.execute("DELETE FROM submissions WHERE enrollment_id = ?", (row["id"],))
+        db.execute("DELETE FROM notifications WHERE enrollment_id = ?", (row["id"],))
+        db.execute("DELETE FROM email_outbox WHERE enrollment_id = ?", (row["id"],))
         db.execute("DELETE FROM enrollments WHERE id = ?", (row["id"],))
     return True
 
@@ -317,3 +319,110 @@ def list_audit(db: sqlite3.Connection, cycle_id: int) -> list[dict]:
         "SELECT * FROM audit_log WHERE cycle_id = ? ORDER BY id",
         (cycle_id,),
     ).fetchall()]
+
+
+# --- notifications ------------------------------------------------------------
+
+def add_notification(db: sqlite3.Connection, cycle_id: int, enrollment_id: int,
+                     kind: str, body: str) -> int:
+    cur = db.execute(
+        "INSERT INTO notifications (cycle_id, enrollment_id, kind, body) VALUES (?, ?, ?, ?)",
+        (cycle_id, enrollment_id, kind, body),
+    )
+    db.commit()
+    return cur.lastrowid
+
+
+def list_notifications(db: sqlite3.Connection, enrollment_id: int) -> list[dict]:
+    return [dict(r) for r in db.execute(
+        "SELECT * FROM notifications WHERE enrollment_id = ? ORDER BY id DESC",
+        (enrollment_id,),
+    ).fetchall()]
+
+
+def count_unread_notifications(db: sqlite3.Connection, enrollment_id: int) -> int:
+    return db.execute(
+        "SELECT COUNT(*) FROM notifications WHERE enrollment_id = ? AND read_at IS NULL",
+        (enrollment_id,),
+    ).fetchone()[0]
+
+
+def mark_notifications_read(db: sqlite3.Connection, enrollment_id: int) -> int:
+    cur = db.execute(
+        "UPDATE notifications SET read_at = datetime('now')"
+        " WHERE enrollment_id = ? AND read_at IS NULL",
+        (enrollment_id,),
+    )
+    db.commit()
+    return cur.rowcount
+
+
+def add_outbox_email(db: sqlite3.Connection, kind: str, subject: str, body: str, *,
+                     recipient_email: str | None = None,
+                     enrollment_id: int | None = None,
+                     instructor_id: int | None = None) -> int:
+    cur = db.execute(
+        "INSERT INTO email_outbox (kind, recipient_email, enrollment_id, instructor_id,"
+        " subject, body) VALUES (?, ?, ?, ?, ?, ?)",
+        (kind, recipient_email, enrollment_id, instructor_id, subject, body),
+    )
+    db.commit()
+    return cur.lastrowid
+
+
+def get_enrollment_for_student(db: sqlite3.Connection, class_id: int,
+                               student_ext_id: str) -> dict | None:
+    return _row(db.execute(
+        "SELECT e.* FROM enrollments e JOIN class_roster r ON r.id = e.roster_id"
+        " WHERE r.class_id = ? AND r.student_ext_id = ?",
+        (class_id, student_ext_id),
+    ).fetchone())
+
+
+# --- password resets ----------------------------------------------------------
+
+def create_password_reset(db: sqlite3.Connection, instructor_id: int,
+                          token_hash: str, ttl_minutes: int = 60) -> int:
+    cur = db.execute(
+        "INSERT INTO password_resets (instructor_id, token_hash, expires_at)"
+        " VALUES (?, ?, datetime('now', ?))",
+        (instructor_id, token_hash, f"+{int(ttl_minutes)} minutes"),
+    )
+    db.commit()
+    return cur.lastrowid
+
+
+def get_valid_password_reset(db: sqlite3.Connection, token_hash: str) -> dict | None:
+    return _row(db.execute(
+        "SELECT * FROM password_resets WHERE token_hash = ?"
+        " AND used_at IS NULL AND expires_at > datetime('now')",
+        (token_hash,),
+    ).fetchone())
+
+
+def mark_reset_used(db: sqlite3.Connection, reset_id: int, instructor_id: int) -> None:
+    with db:
+        db.execute(
+            "UPDATE password_resets SET used_at = datetime('now') WHERE id = ?",
+            (reset_id,),
+        )
+        # revoke the instructor's other outstanding reset links
+        db.execute(
+            "DELETE FROM password_resets WHERE instructor_id = ? AND id != ?"
+            " AND used_at IS NULL",
+            (instructor_id, reset_id),
+        )
+
+
+def update_instructor_password(db: sqlite3.Connection, instructor_id: int,
+                               password_hash: str) -> None:
+    db.execute(
+        "UPDATE instructors SET password_hash = ? WHERE id = ?",
+        (password_hash, instructor_id),
+    )
+    db.commit()
+
+
+def delete_instructor_tokens(db: sqlite3.Connection, instructor_id: int) -> None:
+    db.execute("DELETE FROM auth_tokens WHERE instructor_id = ?", (instructor_id,))
+    db.commit()

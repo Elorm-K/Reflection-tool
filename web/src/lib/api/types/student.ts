@@ -40,3 +40,16 @@ export interface StudentUnplacedView {
 export interface MessagesResponse {
   messages: ChatMessage[]
 }
+
+export interface StudentNotification {
+  id: number
+  kind: 'group-changed' | 'group-updated'
+  body: string
+  created_at: string
+  read_at: string | null
+}
+
+export interface NotificationsResponse {
+  notifications: StudentNotification[]
+  unread: number
+}

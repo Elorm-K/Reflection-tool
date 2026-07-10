@@ -18,6 +18,12 @@ def hash_password(password: str) -> str:
     return f"{salt}${digest.hex()}"
 
 
+def hash_reset_token(token: str) -> str:
+    """Password-reset tokens are high-entropy random strings, so a plain
+    sha256 (no salt/stretching) is enough to make the stored value useless."""
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
 def verify_password(password: str, stored: str) -> bool:
     try:
         salt, hex_digest = stored.split("$", 1)

@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { instructorApi } from '../../lib/api/instructor'
 import type { ApiError } from '../../lib/api/client'
-import { Button, useToast } from '../../components/ui'
+import { BackLink, Button, useToast } from '../../components/ui'
 import { ReviewBoard } from '../../features/reviewBoard/ReviewBoard'
 import { useClassCycle } from './useClassCycle'
 import styles from './instructor.module.css'
@@ -42,16 +42,20 @@ export function ReviewPage() {
     )
 
   const editable = cycle.status === 'proposed'
+  const live = cycle.status === 'published'
 
   return (
     <>
+      <BackLink to={`/i/classes/${classId}`}>Overview</BackLink>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
         <div>
           <h2 className={styles.pageTitle}>Review proposal</h2>
           <p className={styles.pageIntro}>
-            {editable
-              ? 'Drag students between groups; every move is re-validated instantly. Demographic labels are visible only to you, only here.'
-              : `This proposal is ${cycle.status} — the board is read-only.`}
+            {editable &&
+              'Drag students between groups; every move is re-validated instantly. Demographic labels are visible only to you, only here.'}
+            {live &&
+              'Groups are live — a move requires confirmation, is re-validated against the hard constraints, and notifies every affected student.'}
+            {!editable && !live && `This proposal is ${cycle.status} — the board is read-only.`}
           </p>
         </div>
         {editable && (
@@ -66,7 +70,12 @@ export function ReviewPage() {
           </Button>
         )}
       </div>
-      <ReviewBoard cycleId={cycle.id} editable={editable} onApprove={() => approve.mutate()} />
+      <ReviewBoard
+        cycleId={cycle.id}
+        editable={editable || live}
+        live={live}
+        onApprove={() => approve.mutate()}
+      />
     </>
   )
 }

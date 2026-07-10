@@ -11,6 +11,36 @@ function initials(name: string): string {
   return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase() || '??'
 }
 
+function NotificationBanner() {
+  const queryClient = useQueryClient()
+  const { data } = useQuery({
+    queryKey: ['notifications'],
+    queryFn: studentApi.notifications,
+  })
+  const dismiss = useMutation({
+    mutationFn: studentApi.markNotificationsRead,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] })
+      queryClient.invalidateQueries({ queryKey: ['myGroup'] })
+    },
+  })
+  const latestUnread = data?.notifications.find((n) => n.read_at === null)
+  if (!latestUnread) return null
+  return (
+    <div className={styles.noticeCard} role="status">
+      <div>
+        <div className="mono-label">
+          {data!.unread > 1 ? `${data!.unread} updates` : 'Update'} from your instructor
+        </div>
+        <p className={styles.noticeBody}>{latestUnread.body}</p>
+      </div>
+      <Button variant="ghost" onClick={() => dismiss.mutate()} disabled={dismiss.isPending}>
+        Dismiss
+      </Button>
+    </div>
+  )
+}
+
 function Chat() {
   const [draft, setDraft] = useState('')
   const toast = useToast()
@@ -93,6 +123,7 @@ export function MyGroupPage() {
     return (
       <>
         <h2 className={styles.pageTitle}>My Group</h2>
+        <NotificationBanner />
         <Card>{(data as { message?: string }).message ?? 'You are not in a group this cycle — your instructor will follow up with you directly.'}</Card>
       </>
     )
@@ -101,6 +132,7 @@ export function MyGroupPage() {
   const group = data as StudentGroupView
   return (
     <>
+      <NotificationBanner />
       <div className={styles.heroCard}>
         <Badge>Published</Badge>
         <h2>You are in Group {group.group_number}</h2>

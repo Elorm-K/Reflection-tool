@@ -18,6 +18,12 @@ export const instructorApi = {
   login: (email: string, password: string) =>
     api<{ token: string }>('POST', '/api/instructor/login', { email, password }),
 
+  forgotPassword: (email: string) =>
+    api<{ ok: boolean }>('POST', '/api/instructor/forgot-password', { email }),
+
+  resetPassword: (token: string, password: string) =>
+    api<{ ok: boolean }>('POST', '/api/instructor/reset-password', { token, password }),
+
   me: () => api<InstructorMe>('GET', '/api/instructor/me'),
 
   classes: () => api<ClassInfo[]>('GET', '/api/classes'),

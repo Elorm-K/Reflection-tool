@@ -2,6 +2,7 @@ import { api } from './client'
 import type {
   JoinResponse,
   MessagesResponse,
+  NotificationsResponse,
   StudentGroupView,
   StudentMe,
   StudentUnplacedView,
@@ -26,4 +27,9 @@ export const studentApi = {
 
   sendMessage: (body: string) =>
     api<{ id: number }>('POST', '/api/me/group/messages', { body }),
+
+  notifications: () => api<NotificationsResponse>('GET', '/api/me/notifications'),
+
+  markNotificationsRead: () =>
+    api<{ ok: boolean; marked: number }>('POST', '/api/me/notifications/read'),
 }

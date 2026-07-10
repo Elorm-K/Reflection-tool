@@ -205,8 +205,14 @@ export function DashboardPage() {
         </>
       )}
 
-      <Modal open={rosterOpen}>
-        <h3 style={{ marginBottom: 8 }}>Manage roster</h3>
+      <Modal
+        open={rosterOpen}
+        title="Manage roster"
+        onClose={() => {
+          setRosterDraft({ students: [], errors: [] })
+          setRosterOpen(false)
+        }}
+      >
         <p className={styles.pageIntro} style={{ marginBottom: 16 }}>
           Current roster: {roster?.students.length ?? 0} students. Uploading{' '}
           <strong>replaces</strong> the roster; students who have already joined are kept.
@@ -235,16 +241,16 @@ export function DashboardPage() {
         </div>
       </Modal>
 
-      <Modal open={cycleOpen}>
-        <h3 style={{ marginBottom: 16 }}>Start a matching cycle</h3>
+      <Modal open={cycleOpen} title="Start a matching cycle" onClose={() => setCycleOpen(false)}>
         <Field label="Label">
           <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Week 1" />
         </Field>
         <Field label="Deadline (shown to students)">
           <input
+            type="date"
             value={deadline}
+            min={new Date().toISOString().slice(0, 10)}
             onChange={(e) => setDeadline(e.target.value)}
-            placeholder="2026-10-24"
           />
         </Field>
         <div style={{ display: 'flex', gap: 12 }}>

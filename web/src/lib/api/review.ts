@@ -20,4 +20,13 @@ export const reviewApi = {
 
   edit: (cycleId: number, edit: EditRequest) =>
     api<Proposal>('POST', `/api/cycles/${cycleId}/edits`, edit),
+
+  // Post-publish move/assign: the server demands confirm=true (groups are
+  // live) and records notifications for every affected student.
+  reassign: (cycleId: number, edit: EditRequest) =>
+    api<{ proposal: Proposal; notified: number }>(
+      'POST',
+      `/api/cycles/${cycleId}/reassignments`,
+      { ...edit, confirm: true },
+    ),
 }
