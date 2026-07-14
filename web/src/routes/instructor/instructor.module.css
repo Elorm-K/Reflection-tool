@@ -196,20 +196,505 @@
   padding: var(--space-4);
 }
 
-.landing {
-  max-width: 720px;
-  margin: 8vh auto;
-  padding: var(--space-5);
+/* ==========================================================================
+   Public landing page (LandingPage.tsx) — visual match to Figma frame 36:1536
+   ("Instructor - Landing / Onboarding"), built on the repo's brutalist tokens.
+   ========================================================================== */
+
+.landingPage {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
 }
-.landingGrid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--space-5);
+
+/* --- public header ------------------------------------------------------- */
+.landingHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding: var(--space-4) var(--space-5);
+  background: var(--panel);
+  border-bottom: var(--border);
+}
+.landingBrand {
+  font-size: 1.375rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+.landingHeaderNav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+.landingHeaderNav a {
+  font-weight: 700;
+  font-size: 0.8125rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--ink);
+}
+.landingHeaderNav a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.landingHeaderCta {
+  background: var(--ink);
+  color: var(--paper) !important;
+  padding: var(--space-2) var(--space-4);
+  box-shadow: var(--shadow-sm);
+}
+
+/* --- main container ------------------------------------------------------ */
+.landing {
+  flex: 1;
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-5) var(--space-7);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-7);
 }
 @media (min-width: 768px) {
-  .landingGrid {
-    grid-template-columns: 1fr 1fr;
+  .landing {
+    padding: var(--space-7) var(--space-6) 96px;
   }
+}
+
+.landingSection {
+  margin-top: 0;
+}
+
+.sectionEyebrow {
+  margin: 0 0 var(--space-5);
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Visibly-placeholder content — never mistaken for real copy on the public page. */
+.placeholder {
+  border: 1px dashed var(--line);
+  background: transparent;
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* --- 1. hero ------------------------------------------------------------- */
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-4);
+  padding-top: var(--space-4);
+}
+.heroBadge {
+  align-self: center;
+  background: var(--ink);
+  color: var(--paper);
+  padding: var(--space-1) var(--space-3);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  box-shadow: var(--shadow);
+}
+.heroTitle {
+  margin: var(--space-2) 0 0;
+  font-size: 2.25rem;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  max-width: 18ch;
+}
+@media (min-width: 768px) {
+  .heroTitle {
+    font-size: 3rem;
+  }
+}
+.heroMark {
+  border-bottom: 4px solid var(--ink);
+  padding-bottom: 2px;
+}
+.heroSub {
+  margin: 0;
+  max-width: 60ch;
+  color: var(--muted);
+  font-size: 1.0625rem;
+  line-height: 1.6;
+}
+.heroOutcome {
+  width: 100%;
+  max-width: 60ch;
+  text-align: left;
+  padding: var(--space-4);
+}
+.heroActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: var(--space-4);
+}
+.heroSecondary {
+  font-weight: 700;
+  font-size: 0.8125rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+/* Large CTA button (hero + final) — Figma black button with hard offset shadow. */
+.ctaLarge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: var(--ink);
+  color: var(--paper);
+  border: var(--border);
+  padding: var(--space-4) var(--space-6);
+  font-weight: 800;
+  font-size: 1.0625rem;
+  letter-spacing: 0.02em;
+  box-shadow: var(--shadow);
+  transition: transform 60ms ease, box-shadow 60ms ease;
+}
+.ctaLarge:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 5px 5px 0 var(--ink);
+}
+.ctaLarge:active {
+  transform: translate(2px, 2px);
+  box-shadow: var(--shadow-sm);
+}
+.ctaLarge:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 3px;
+}
+
+/* --- 2. student quotes --------------------------------------------------- */
+.quoteGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
+}
+@media (min-width: 768px) {
+  .quoteGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+.quoteCard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  background: var(--paper);
+  border: var(--border);
+  box-shadow: var(--shadow);
+  padding: var(--space-5);
+}
+.quoteCard.placeholder {
+  background: var(--paper);
+}
+.quoteChip {
+  align-self: flex-start;
+  background: var(--panel);
+  color: var(--ink);
+  padding: var(--space-1) var(--space-2);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-style: normal;
+}
+.quote {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+.quoteAttrRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: auto;
+  padding-top: var(--space-2);
+}
+.quoteAvatar {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  background: var(--panel);
+  border: var(--border-thin);
+}
+.quoteAttr {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--muted);
+  font-style: normal;
+}
+
+/* --- 3. what reflection groups are -------------------------------------- */
+.whatIs {
+  border: var(--border);
+  background: var(--paper);
+  padding: var(--space-6);
+  max-width: 72ch;
+  margin: 0 auto;
+  width: 100%;
+}
+.whatIs h2 {
+  margin: 0 0 var(--space-4);
+  font-size: 1.5rem;
+}
+.whatIs p {
+  margin: 0 0 var(--space-4);
+  color: var(--muted);
+  line-height: 1.65;
+}
+.whatIs p:last-child {
+  margin-bottom: 0;
+}
+
+/* --- 4. how easy it is (three columns) ---------------------------------- */
+.involvedGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
+}
+@media (min-width: 768px) {
+  .involvedGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+.involvedCol {
+  background: var(--paper);
+  border: var(--border);
+  padding: var(--space-5);
+}
+.involvedHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4);
+  font-size: 1.1875rem;
+  letter-spacing: -0.01em;
+}
+.involvedHead svg {
+  flex: 0 0 auto;
+}
+.involvedList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.involvedList li {
+  display: flex;
+  gap: var(--space-2);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.involvedNum {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-weight: 800;
+  color: var(--ink);
+}
+.meterList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+.meter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.meterLabel {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.meterBar {
+  height: 12px;
+  background: var(--panel);
+  border: var(--border-thin);
+}
+.meterFill {
+  display: block;
+  height: 100%;
+  background: var(--ink);
+}
+.meterValue {
+  font-weight: 800;
+  font-size: 0.9375rem;
+}
+
+/* --- 5. FAQ accordion ---------------------------------------------------- */
+.faqSection {
+  max-width: 768px;
+  margin: 0 auto;
+  width: 100%;
+}
+.faqHeading {
+  text-align: center;
+  margin: 0 0 var(--space-5);
+  font-size: 1.5rem;
+}
+.faqList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.faqItem {
+  background: var(--paper);
+  border: var(--border);
+}
+.faqSummary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+  list-style: none;
+}
+.faqSummary::-webkit-details-marker {
+  display: none;
+}
+.faqSummary:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: -3px;
+}
+.faqChevron {
+  flex: 0 0 auto;
+  color: var(--muted);
+  transition: transform 120ms ease;
+}
+.faqItem[open] .faqChevron {
+  transform: rotate(180deg);
+}
+.faqAnswer {
+  margin: 0;
+  padding: 0 var(--space-5) var(--space-5);
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+/* --- 6. final CTA + privacy note ---------------------------------------- */
+.finalCta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-5);
+  padding: var(--space-6) 0;
+}
+.privacyNote {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  background: var(--panel);
+  border: var(--border-thin);
+  padding: var(--space-4);
+  max-width: 480px;
+}
+.privacyIcon {
+  flex: 0 0 auto;
+  color: var(--ink);
+  margin-top: 2px;
+}
+.privacyNote p {
+  color: var(--muted);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+/* --- footer -------------------------------------------------------------- */
+.landingFooter {
+  background: #212121;
+  color: var(--paper);
+  padding: var(--space-7) var(--space-5) var(--space-5);
+}
+.footerInner {
+  max-width: 1120px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-6);
+}
+@media (min-width: 768px) {
+  .footerInner {
+    grid-template-columns: 2fr 1fr;
+  }
+}
+.footerBrand {
+  margin: 0 0 var(--space-3);
+  font-size: 1.375rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.footerTagline {
+  margin: 0;
+  max-width: 44ch;
+  color: #b0b0b0;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+.footerLinks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.footerColHead {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #b0b0b0;
+  margin-bottom: var(--space-1);
+}
+.footerLinks a {
+  color: #e0e0e0;
+  font-size: 0.9375rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  width: fit-content;
+}
+.footerLinks a:hover {
+  color: var(--paper);
+}
+.footerBar {
+  max-width: 1120px;
+  margin: var(--space-6) auto 0;
+  padding-top: var(--space-4);
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  color: #b0b0b0;
 }
 .sizeRow {
   display: flex;
