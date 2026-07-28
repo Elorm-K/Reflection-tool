@@ -20,7 +20,15 @@ from .matcher import match
 from .notify import all_notifications, student_view
 from .objective import group_overlap_slots
 from .output_format import build_proposal
-from .review_workflow import Session, WorkflowError, apply_edit, approve, composition_view, publish
+from .review_workflow import (
+    Session,
+    WorkflowError,
+    apply_edit,
+    apply_live_edit,
+    approve,
+    composition_view,
+    publish,
+)
 
 
 def _load_roster_file(path: str) -> tuple[list, dict]:
@@ -128,7 +136,8 @@ def cmd_composition(args) -> int:
 
 def cmd_edit(args) -> int:
     session, raw_students = _load_session(args.state)
-    apply_edit(
+    apply = apply_live_edit if args.live else apply_edit
+    apply(
         session,
         {
             "action": args.action,
@@ -230,6 +239,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--to-group", required=True, type=int, dest="to_group")
     p.add_argument("--allow-oversize", action="store_true", dest="allow_oversize")
     p.add_argument("--allow-low-overlap", action="store_true", dest="allow_low_overlap")
+    p.add_argument("--live", action="store_true",
+                   help="apply to a PUBLISHED grouping (status is left unchanged)")
     p.set_defaults(fn=cmd_edit)
 
     p = sub.add_parser("approve", help="proposed -> approved")

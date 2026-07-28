@@ -137,3 +137,111 @@ class TestCli:
         )
         assert code == 0
         assert json.loads(out)["status"] == "proposed"
+
+    # ── live edits (published cycles) ──────────────────────────────────────
+    def _published_state(self, tmp_path, capsys):
+        """8 fully-available students -> any move is bounded only by size."""
+        roster = {
+            "config": ROSTER["config"],
+            "students": [
+                {"id": f"s{i:02d}", "name": f"P{i}", "availability": [1, 1, 1, 1],
+                 "gender": "man" if i % 2 else "woman", "disability": "none"}
+                for i in range(1, 9)
+            ],
+        }
+        roster_path = tmp_path / "roster.json"
+        roster_path.write_text(json.dumps(roster))
+        state = tmp_path / "session.json"
+        run(capsys, "match", "--roster", roster_path, "--state", state)
+        run(capsys, "approve", "--state", state)
+        run(capsys, "publish", "--state", state)
+        return state
+
+    def test_live_edit_moves_a_student_on_a_published_cycle(self, tmp_path, capsys):
+        state = self._published_state(tmp_path, capsys)
+        _, out = run(capsys, "show", "--state", state)
+        groups = json.loads(out)["groups"]
+        mover = groups[0]["members"][0]
+        target = groups[1]["group_id"]
+
+        code, out = run(capsys, "edit", "--live", "--state", state,
+                        "--action", "move", "--student", mover, "--to-group", target)
+        assert code == 0
+        proposal = json.loads(out)
+        assert proposal["status"] == "published"  # status never changes
+        moved_into = next(g for g in proposal["groups"] if g["group_id"] == target)
+        assert mover in moved_into["members"]
+
+        saved = json.loads(state.read_text())
+        assert any(entry.startswith(f"live-move {mover}") for entry in saved["audit_log"])
+
+    def test_live_edit_requires_the_live_flag(self, tmp_path, capsys):
+        state = self._published_state(tmp_path, capsys)
+        _, out = run(capsys, "show", "--state", state)
+        groups = json.loads(out)["groups"]
+        code, out = run(capsys, "edit", "--state", state, "--action", "move",
+                        "--student", groups[0]["members"][0],
+                        "--to-group", groups[1]["group_id"])
+        assert code == 1
+        assert "only allowed while status is 'proposed'" in out
+
+    def test_live_edit_rejected_before_publish(self, paths, capsys):
+        roster, state = paths
+        run(capsys, "match", "--roster", roster, "--state", state)
+        code, out = run(capsys, "edit", "--live", "--state", state, "--action", "move",
+                        "--student", "s01", "--to-group", 2)
+        assert code == 1
+        assert "live edits are only allowed while status is 'published'" in out
+
+        run(capsys, "approve", "--state", state)
+        code, out = run(capsys, "edit", "--live", "--state", state, "--action", "move",
+                        "--student", "s01", "--to-group", 2)
+        assert code == 1
+        assert "live edits are only allowed while status is 'published'" in out
+
+    def test_live_edit_revalidates_size_bounds(self, tmp_path, capsys):
+        state = self._published_state(tmp_path, capsys)
+        _, out = run(capsys, "show", "--state", state)
+        groups = json.loads(out)["groups"]
+        # Fill one group past max_size by moving members into it one at a time;
+        # either a size bound or the source's min_size stops it.
+        target = groups[0]["group_id"]
+        donors = [m for g in groups if g["group_id"] != target for m in g["members"]]
+        code = 0
+        for donor in donors:
+            code, out = run(capsys, "edit", "--live", "--state", state, "--action", "move",
+                            "--student", donor, "--to-group", target)
+            if code == 1:
+                break
+        assert code == 1
+        assert "violates size bounds" in out
+        assert "allow_oversize" in out
+
+    def test_live_assign_places_an_unplaced_student(self, tmp_path, capsys):
+        # s07 shares no slots with anyone -> unplaced by the matcher.
+        roster = {
+            "config": ROSTER["config"],
+            "students": [
+                {"id": f"s{i:02d}", "name": f"P{i}",
+                 "availability": [1, 1, 1, 1] if i <= 6 else [0, 0, 0, 0],
+                 "gender": "man", "disability": "none"}
+                for i in range(1, 8)
+            ],
+        }
+        roster_path = tmp_path / "roster.json"
+        roster_path.write_text(json.dumps(roster))
+        state = tmp_path / "session.json"
+        run(capsys, "match", "--roster", roster_path, "--state", state)
+        _, out = run(capsys, "show", "--state", state)
+        proposal = json.loads(out)
+        assert [u["student_id"] for u in proposal["unplaced"]] == ["s07"]
+        target = proposal["groups"][0]["group_id"]
+
+        run(capsys, "approve", "--state", state)
+        run(capsys, "publish", "--state", state)
+        code, out = run(capsys, "edit", "--live", "--state", state, "--action", "assign",
+                        "--student", "s07", "--to-group", target,
+                        "--allow-low-overlap")
+        assert code == 0
+        saved = json.loads(state.read_text())
+        assert any(entry.startswith("live-assign") for entry in saved["audit_log"])
